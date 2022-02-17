@@ -293,8 +293,9 @@ if __name__ == "__main__":
         NUM_LAYERS = 12
         
         cls_model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=cnn, tnn=tnn, fc_features=FC_FEATURES, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
-        gen_model = Generator(num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS)
-        
+        # gen_model = Generator(num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS)
+        gen_model = BaseCMN(args)
+
         clsgen_model = ClsGen(cls_model, gen_model, NUM_LABELS, NUM_EMBEDS)
         clsgen_model = nn.DataParallel(clsgen_model).cuda()
         
