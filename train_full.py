@@ -155,8 +155,8 @@ torch.set_num_threads(1)
 torch.manual_seed(seed=123)
 
 RELOAD = True # True / False
-PHASE = 'INFER' # TRAIN / TEST / INFER
-DATASET_NAME = 'MIMIC' # NIHCXR / NLMCXR / MIMIC 
+PHASE = 'TRAIN' # TRAIN / TEST / INFER
+DATASET_NAME = 'NLMCXR' # NIHCXR / NLMCXR / MIMIC
 BACKBONE_NAME = 'DenseNet121' # ResNeSt50 / ResNet50 / DenseNet121
 MODEL_NAME = 'ClsGenInt' # ClsGen / ClsGenInt / VisualTransformer / GumbelTransformer
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         NUM_LABELS = 114
         NUM_CLASSES = 2
         
-        dataset = MIMIC('/home/hoang/Datasets/MIMIC/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
+        dataset = MIMIC('/content/X-Ray-Report-Generation/mimic/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
         train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False, train_phase=(PHASE == 'TRAIN'))
         
         VOCAB_SIZE = len(dataset.vocab)
@@ -220,7 +220,7 @@ if __name__ == "__main__":
         NUM_LABELS = 114
         NUM_CLASSES = 2
 
-        dataset = NLMCXR('/home/hoang/Datasets/NLMCXR/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
+        dataset = NLMCXR('/content/X-Ray-Report-Generation/open-i/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
         
         VOCAB_SIZE = len(dataset.vocab)
@@ -241,7 +241,7 @@ if __name__ == "__main__":
         FC_FEATURES = 2048
         
     elif BACKBONE_NAME == 'DenseNet121':
-        backbone = torch.hub.load('pytorch/vision:v0.5.0', 'densenet121', pretrained=True)
+        backbone = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
         FC_FEATURES = 1024
         
     else:
@@ -385,9 +385,9 @@ if __name__ == "__main__":
         raise ValueError('Invalid MODEL_NAME')
     
     # --- Main program ---
-    train_loader = data.DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, drop_last=True)
-    val_loader = data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
-    test_loader = data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+    train_loader = data.DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=2, drop_last=True)
+    val_loader = data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
+    test_loader = data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
     model = nn.DataParallel(model).cuda()
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=WD)
