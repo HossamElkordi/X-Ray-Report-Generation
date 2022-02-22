@@ -328,7 +328,7 @@ class BaseCMN(AttModel):
         self.dropout = args.dropout
         self.topk = args.topk
 
-        tgt_vocab = self.vocab_size + 1
+        tgt_vocab = self.vocab_size
 
         self.cmn = MultiThreadMemory(args.num_heads, args.d_model, topk=args.topk)
 
@@ -363,7 +363,6 @@ class BaseCMN(AttModel):
 
         att_masks = att_masks.unsqueeze(-2)
         if seq is not None:
-            seq = seq[:, :-1]
             seq_mask = (seq.data > 0)
             seq_mask[:, 0] += True
 

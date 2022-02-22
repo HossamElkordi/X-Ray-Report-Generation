@@ -153,14 +153,14 @@ def main(args):
                                                           'No' if 'history' not in args.sources else '')
     elif args.dataset_name == 'NLMCXR':
         dataset = NLMCXR(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
-                         max_views=args.max_views, sources=args.soureces, targets=args.targets)
+                         max_views=args.max_views, sources=args.sources, targets=args.targets)
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
 
         vocab_size = len(dataset.vocab)
         posit_size = dataset.max_len
         comment = 'MaxView{}_NumLabel{}_{}History'.format(args.max_views, args.decease_related_topics,
                                                           'No' if 'history' not in args.sources else '')
-    print('Done Loading Dataset.')
+    print('Done Loading Dataset')
 
     backbone, fc_features = None, None
     if args.visual_extractor == 'DenseNet121':
@@ -214,7 +214,7 @@ def main(args):
 
     model = ClsGenInt(cls_gen_model.module.cpu(), int_model.module.cpu(), freeze_evaluator=True)
     criterion = CELossTotalEval(ignore_index=3)
-    print('Done Creating Model.')
+    print('Done Creating Model')
 
     train_loader = data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
                                    drop_last=True)
