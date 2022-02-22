@@ -318,8 +318,8 @@ class BaseCMN(AttModel):
                 nn.init.xavier_uniform_(p)
         return model
 
-    def __init__(self, args):
-        super(BaseCMN, self).__init__(args)
+    def __init__(self, args, vocab):
+        super(BaseCMN, self).__init__(args, vocab)
         self.args = args
         self.num_layers = args.num_layers
         self.d_model = args.d_model
@@ -333,7 +333,8 @@ class BaseCMN(AttModel):
         self.cmn = MultiThreadMemory(args.num_heads, args.d_model, topk=args.topk)
 
         self.model = self.make_model(tgt_vocab, self.cmn)
-        self.logit = nn.Linear(args.d_model, tgt_vocab)
+        self.logit = nn.Linear(args.cmm_size, tgt_vocab)
+        self.out_logit = nn.Linear(args.d_model, args.cmm_size)
 
         self.memory_matrix = nn.Parameter(torch.FloatTensor(args.cmm_size, args.cmm_dim))
         nn.init.normal_(self.memory_matrix, 0, 1 / args.cmm_dim)
@@ -376,8 +377,10 @@ class BaseCMN(AttModel):
     def _forward(self, att_feats, seq, att_masks=None):
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
         out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
+        out = self.out_logit(out)
         outputs = F.log_softmax(self.logit(out), dim=-1)
-        return outputs
+        probs = torch.exp(outputs)
+        return probs, out
 
     def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):
         if len(state) == 0:

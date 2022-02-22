@@ -34,10 +34,10 @@ def pack_wrapper(module, att_feats, att_masks):
 
 
 class AttModel(CaptionModel):
-    def __init__(self, args):
+    def __init__(self, args, vocab):
         super(AttModel, self).__init__()
         self.args = args
-        self.vocab_size = 1000
+        self.vocab_size = len(vocab)
         self.input_encoding_size = args.d_model
         self.rnn_size = args.d_ff
         self.num_layers = args.num_layers
@@ -46,9 +46,9 @@ class AttModel(CaptionModel):
         self.att_feat_size = args.d_vf
         self.att_hid_size = args.d_model
 
-        self.bos_idx = args.bos_idx
-        self.eos_idx = args.eos_idx
-        self.pad_idx = args.pad_idx
+        self.bos_idx = vocab.bos_idx
+        self.eos_idx = vocab.eos_idx
+        self.pad_idx = vocab.pad_idx
 
         self.use_bn = args.use_bn
 

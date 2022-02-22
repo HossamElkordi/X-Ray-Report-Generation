@@ -207,7 +207,7 @@ if __name__ == "__main__":
         NUM_LABELS = 114
         NUM_CLASSES = 2
         
-        dataset = MIMIC('/content/X-Ray-Report-Generation/mimic/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
+        dataset = MIMIC('/content/X-Ray-Report-Generation/mimic/', INPUT_SIZE, view_pos=['AP', 'PA', 'LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
         train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False, train_phase=(PHASE == 'TRAIN'))
         
         VOCAB_SIZE = len(dataset.vocab)
@@ -280,21 +280,14 @@ if __name__ == "__main__":
         DROPOUT = 0.1 # Avoid overfitting
         NUM_EMBEDS = 256
         FWD_DIM = 256
-        
-        NUM_HEADS = 8
-        NUM_LAYERS = 1
-        
+
         cnn = CNN(backbone, BACKBONE_NAME)
         cnn = MVCNN(cnn)
-        tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
-        
-        # Not enough memory to run 8 heads and 12 layers, instead 1 head is enough
-        NUM_HEADS = 1
-        NUM_LAYERS = 12
+        tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=args.num_heads, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=1, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
+
         
         cls_model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=cnn, tnn=tnn, fc_features=FC_FEATURES, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
-        # gen_model = Generator(num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS)
-        gen_model = BaseCMN(args)
+        gen_model = BaseCMN(args, dataset.vocab)
 
         clsgen_model = ClsGen(cls_model, gen_model, NUM_LABELS, NUM_EMBEDS)
         clsgen_model = nn.DataParallel(clsgen_model).cuda()
@@ -305,11 +298,8 @@ if __name__ == "__main__":
             print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from, last_epoch, best_metric, test_metric))
         
         # Initialize the Interpreter module
-        NUM_HEADS = 8
-        NUM_LAYERS = 1
-        
-        tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
-        int_model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=None, tnn=tnn, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
+        tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=args.num_heads, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=1, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
+        int_model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=None, tnn=tnn, embed_dim=NUM_EMBEDS, num_heads=args.num_heads, dropout=DROPOUT)
         int_model = nn.DataParallel(int_model).cuda()
         
         if not RELOAD:
@@ -391,7 +381,8 @@ if __name__ == "__main__":
     test_loader = data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
     model = nn.DataParallel(model).cuda()
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=WD)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic, weight_decay=args.weight_decay)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=MILESTONES)
 
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
