@@ -18,6 +18,9 @@ from losses import CELossTotalEval
 from models import CNN, MVCNN, TNN, Classifier, ClsGen, ClsGenInt
 from base_cmn import BaseCMN
 
+# --- Metrics Evaluation ---
+import nlgeval
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
@@ -51,6 +54,15 @@ def test_model(test_data, comment):
     for i in range(len(test_data.idx_pidsid)):
         out_file_img.write(test_data.idx_pidsid[i][0] + ' ' + test_data.idx_pidsid[i][1] + '\n')
 
+def evaluate_metric(reference, hypothesis):
+    scores = nlgeval.compute_metrics(hypothesis, reference)
+    print('Bleu_1', scores['Bleu_1'])
+    print('Bleu_2', scores['Bleu_2'])
+    print('Bleu_3', scores['Bleu_3'])
+    print('Bleu_4', scores['Bleu_4'])
+    print('METEOR', scores['METEOR'])
+    print('ROUGE_L', scores['ROUGE_L'])
+    print('CIDEr',scores['CIDEr'])
 
 def infer_model(model, dataset, test_data, test_loader, comment):
     txt_test_outputs, txt_test_targets = infer(test_loader, model, device='cuda', threshold=0.25)
@@ -106,6 +118,11 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     for i in tqdm(range(len(test_data))):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
+    evaluate_metric('outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
+                                                               args.visual_extractor, comment),
+                    'outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
+                                                               args.visual_extractor, comment)
+                    )
 
 
 def infer(data_loader, model, device='cpu', threshold=None):
