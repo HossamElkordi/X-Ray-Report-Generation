@@ -260,7 +260,7 @@ def main(args):
                                                                                                   last_epoch,
                                                                                                   best_metric,
                                                                                                   test_metric))
-
+    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/checkpoint.pt'
     if args.phase == 'train':
         train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
                     best_metric, last_epoch, args.epochs, checkpoint_path_to)
