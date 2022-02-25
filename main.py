@@ -54,6 +54,7 @@ def test_model(test_data, comment):
     for i in range(len(test_data.idx_pidsid)):
         out_file_img.write(test_data.idx_pidsid[i][0] + ' ' + test_data.idx_pidsid[i][1] + '\n')
 
+
 def evaluate_metric(reference, hypothesis):
     scores = nlgeval.compute_metrics(hypothesis, reference)
     print('Bleu_1', scores['Bleu_1'])
@@ -62,7 +63,8 @@ def evaluate_metric(reference, hypothesis):
     print('Bleu_4', scores['Bleu_4'])
     print('METEOR', scores['METEOR'])
     print('ROUGE_L', scores['ROUGE_L'])
-    print('CIDEr',scores['CIDEr'])
+    print('CIDEr', scores['CIDEr'])
+
 
 def infer_model(model, dataset, test_data, test_loader, comment):
     txt_test_outputs, txt_test_targets = infer(test_loader, model, device='cuda', threshold=0.25)
@@ -119,9 +121,9 @@ def infer_model(model, dataset, test_data, test_loader, comment):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
     evaluate_metric('outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment),
+                                                           args.visual_extractor, comment),
                     'outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment)
+                                                           args.visual_extractor, comment)
                     )
 
 
@@ -250,8 +252,8 @@ def main(args):
 
     checkpoint_path_from = 'checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
                                                                args.visual_extractor, comment)
-    checkpoint_path_to = 'checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
-                                                             args.visual_extractor, comment)
+    checkpoint_path_to = 'content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
+                                                                                   args.visual_extractor, comment)
 
     if args.reload:
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)  # Reload
@@ -260,7 +262,6 @@ def main(args):
                                                                                                   last_epoch,
                                                                                                   best_metric,
                                                                                                   test_metric))
-    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/checkpoint.pt'
     if args.phase == 'train':
         train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
                     best_metric, last_epoch, args.epochs, checkpoint_path_to)
