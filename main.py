@@ -206,7 +206,7 @@ def main(args):
     cls_gen_model = nn.DataParallel(cls_gen_model).cuda()
 
     if not args.reload:
-        checkpoint_path_from = 'checkpoints/{}_ClsGen_{}_{}.pt'.format(args.dataset_name,
+        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}.pt'.format(args.dataset_name,
                                                                        args.visual_extractor, comment)
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, cls_gen_model)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
@@ -223,7 +223,7 @@ def main(args):
     int_model = nn.DataParallel(int_model).cuda()
 
     if not args.reload:
-        checkpoint_path_from = 'checkpoints/{}_Transformer_MaxView2_NumLabel{}.pt'.format(args.dataset_name,
+        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}.pt'.format(args.dataset_name,
                                                                                           args.decease_related_topics)
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
@@ -250,9 +250,9 @@ def main(args):
     last_epoch = -1
     best_metric = 1e9
 
-    checkpoint_path_from = 'checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
+    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
                                                                args.visual_extractor, comment)
-    checkpoint_path_to = 'content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
+    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
                                                                                    args.visual_extractor, comment)
 
     if args.reload:
