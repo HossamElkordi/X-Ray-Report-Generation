@@ -49,7 +49,7 @@ class CaptionModel(nn.Module):
         # does one step of classical beam search
 
         def beam_step(logprobs, unaug_logprobs, beam_size, t, beam_seq, beam_seq_logprobs, beam_logprobs_sum, state):
-            # INPUTS:
+            # INPUTdef beam_search(selS:
             # logprobs: probabilities augmented after diversity N*bxV
             # beam_size: obvious
             # t        : time instant

@@ -68,7 +68,8 @@ class Transformer(nn.Module):
         embeddings = self.tgt_embed(tgt)
 
         # Memory querying and responding for textual features
-        dummy_memory_matrix = memory_matrix.unsqueeze(0).expand(embeddings.size(0), memory_matrix.size(0), memory_matrix.size(1))
+        dummy_memory_matrix = memory_matrix.unsqueeze(0).expand(embeddings.size(0), memory_matrix.size(0),
+                                                                memory_matrix.size(1))
         responses = self.cmn(embeddings, dummy_memory_matrix, dummy_memory_matrix)
         embeddings = embeddings + responses
         # Memory querying and responding for textual features
@@ -356,7 +357,8 @@ class BaseCMN(AttModel):
             att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long)
 
         # Memory querying and responding for visual features
-        dummy_memory_matrix = self.memory_matrix.unsqueeze(0).expand(att_feats.size(0), self.memory_matrix.size(0), self.memory_matrix.size(1))
+        dummy_memory_matrix = self.memory_matrix.unsqueeze(0).expand(att_feats.size(0), self.memory_matrix.size(0),
+                                                                     self.memory_matrix.size(1))
         responses = self.cmn(att_feats, dummy_memory_matrix, dummy_memory_matrix)
         att_feats = att_feats + responses
         # Memory querying and responding for visual features
@@ -374,12 +376,55 @@ class BaseCMN(AttModel):
         return att_feats, seq, att_masks, seq_mask
 
     def _forward(self, att_feats, seq, att_masks=None):
-        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
-        out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
-        out = self.out_logit(out)
-        outputs = F.log_softmax(self.logit(out), dim=-1)
-        probs = torch.exp(outputs)
-        return probs, out
+        if seq is not None:
+            att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
+            out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
+            out = self.out_logit(out)
+            outputs = F.log_softmax(self.logit(out), dim=-1)
+            probs = torch.exp(outputs)
+            return probs, out
+        else:
+            return self.infer(att_feats)
+
+    def infer(self, source_embed, max_len=300, top_k=1):
+        outputs = torch.ones((top_k, source_embed.shape[0], 1), dtype=torch.long).to(
+            source_embed.device) * self.bos_id  # (K,B,1) <s>
+        scores = torch.zeros((top_k, source_embed.shape[0]), dtype=torch.float32).to(
+            source_embed.device)  # (K,B)
+
+        for _ in range(1, max_len):
+            possible_outputs = []
+            possible_scores = []
+
+            for k in range(top_k):
+                output = outputs[k]  # (B,L)
+                score = scores[k]  # (B)
+
+                att, emb = self._forward(source_embed, output)
+                val, idx = torch.topk(att[:, -1, :], top_k)  # (B,K)
+                log_val = -torch.log(val)  # (B,K)
+
+                for i in range(top_k):
+                    new_output = torch.cat([output, idx[:, i].view(-1, 1)], dim=-1)  # (B,L+1)
+                    new_score = score + log_val[:, i].view(-1)  # (B)
+                    possible_outputs.append(new_output.unsqueeze(0))  # (1,B,L+1)
+                    possible_scores.append(new_score.unsqueeze(0))  # (1,B)
+
+            possible_outputs = torch.cat(possible_outputs, dim=0)  # (K^2,B,L+1)
+            possible_scores = torch.cat(possible_scores, dim=0)  # (K^2,B)
+
+            # Pruning the solutions
+            val, idx = torch.topk(possible_scores, top_k, dim=0)  # (K,B)
+            col_idx = torch.arange(idx.shape[1], device=idx.device).unsqueeze(0).repeat(idx.shape[0],
+                                                                                        1)  # (K,B)
+            outputs = possible_outputs[idx, col_idx]  # (K,B,L+1)
+            scores = possible_scores[idx, col_idx]  # (K,B)
+
+        val, idx = torch.topk(scores, 1, dim=0)  # (1,B)
+        col_idx = torch.arange(idx.shape[1], device=idx.device).unsqueeze(0).repeat(idx.shape[0], 1)  # (K,B)
+        output = outputs[idx, col_idx]  # (1,B,L)
+        score = scores[idx, col_idx]  # (1,B)
+        return output.squeeze(0)  # (B,L)
 
     def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):
         if len(state) == 0:
