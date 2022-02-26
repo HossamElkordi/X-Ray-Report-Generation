@@ -50,7 +50,8 @@ def train_model(model, train_loader, val_loader, test_loader, optimizer, criteri
 def test_model(test_data, comment):
     # Output the file list for inspection
     out_file_img = open('/content/drive/MyDrive/outputs/{}_{}_{}_{}_Img.txt'.format(args.dataset_name, args.model_name,
-                                                             args.visual_extractor, comment), 'w')
+                                                                                    args.visual_extractor, comment),
+                        'w')
     for i in range(len(test_data.idx_pidsid)):
         out_file_img.write(test_data.idx_pidsid[i][0] + ' ' + test_data.idx_pidsid[i][1] + '\n')
 
@@ -71,12 +72,15 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     gen_outputs = txt_test_outputs[0]
     gen_targets = txt_test_targets[0]
 
-    out_file_ref = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment), 'w')
-    out_file_hyp = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment), 'w')
-    out_file_lbl = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment), 'w')
+    out_file_ref = open(
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, comment), 'w')
+    out_file_hyp = open(
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, comment), 'w')
+    out_file_lbl = open(
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, comment), 'w')
 
     for i in range(len(gen_outputs)):
         candidate = ''
@@ -121,9 +125,9 @@ def infer_model(model, dataset, test_data, test_loader, comment):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
     evaluate_metric('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
-                                                           args.visual_extractor, comment),
+                                                                                  args.visual_extractor, comment),
                     '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
-                                                           args.visual_extractor, comment)
+                                                                                  args.visual_extractor, comment)
                     )
 
 
@@ -206,8 +210,9 @@ def main(args):
     cls_gen_model = nn.DataParallel(cls_gen_model).cuda()
 
     if not args.reload:
-        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}.pt'.format(args.dataset_name,
-                                                                       args.visual_extractor, comment)
+        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}_{}.pt'.format(args.dataset_name,
+                                                                                                 args.visual_extractor,
+                                                                                                 comment, args.trial)
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, cls_gen_model)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
                                                                                                   last_epoch,
@@ -223,8 +228,9 @@ def main(args):
     int_model = nn.DataParallel(int_model).cuda()
 
     if not args.reload:
-        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}.pt'.format(args.dataset_name,
-                                                                                          args.decease_related_topics)
+        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}_{}.pt'.format(
+            args.dataset_name,
+            args.decease_related_topics, args.trial)
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
                                                                                                   last_epoch,
@@ -250,10 +256,14 @@ def main(args):
     last_epoch = -1
     best_metric = 1e9
 
-    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
-                                                               args.visual_extractor, comment)
-    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name, args.model_name,
-                                                                                   args.visual_extractor, comment)
+    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}_{}.pt'.format(args.dataset_name,
+                                                                                         args.model_name,
+                                                                                         args.visual_extractor, comment,
+                                                                                         args.trial)
+    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}_{}.pt'.format(args.dataset_name,
+                                                                                       args.model_name,
+                                                                                       args.visual_extractor, comment,
+                                                                                       args.trial)
 
     if args.reload:
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)  # Reload
@@ -277,6 +287,7 @@ def parse_agruments():
     # Operation Phase
     parser.add_argument('--phase', type=str, default='train', choices=['train', 'infer', 'test'])
     parser.add_argument('--reload', type=bool, default=True, help='whether to load a saved model or not')
+    parser.add_argument('--trial', type=int, default=1, help='tuning trial number')
 
     # Data input settings
     parser.add_argument('--dataset_dir', type=str, default='/content/x_ray_report_generation/open-i',
