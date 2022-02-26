@@ -49,7 +49,7 @@ def train_model(model, train_loader, val_loader, test_loader, optimizer, criteri
 
 def test_model(test_data, comment):
     # Output the file list for inspection
-    out_file_img = open('outputs/{}_{}_{}_{}_Img.txt'.format(args.dataset_name, args.model_name,
+    out_file_img = open('/content/drive/MyDrive/outputs/{}_{}_{}_{}_Img.txt'.format(args.dataset_name, args.model_name,
                                                              args.visual_extractor, comment), 'w')
     for i in range(len(test_data.idx_pidsid)):
         out_file_img.write(test_data.idx_pidsid[i][0] + ' ' + test_data.idx_pidsid[i][1] + '\n')
@@ -71,11 +71,11 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     gen_outputs = txt_test_outputs[0]
     gen_targets = txt_test_targets[0]
 
-    out_file_ref = open('outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
+    out_file_ref = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
                                                                args.visual_extractor, comment), 'w')
-    out_file_hyp = open('outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
+    out_file_hyp = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
                                                                args.visual_extractor, comment), 'w')
-    out_file_lbl = open('outputs/x_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
+    out_file_lbl = open('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
                                                                args.visual_extractor, comment), 'w')
 
     for i in range(len(gen_outputs)):
@@ -120,9 +120,9 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     for i in tqdm(range(len(test_data))):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
-    evaluate_metric('outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
+    evaluate_metric('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
                                                            args.visual_extractor, comment),
-                    'outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
+                    '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
                                                            args.visual_extractor, comment)
                     )
 
