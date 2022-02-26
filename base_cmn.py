@@ -388,7 +388,7 @@ class BaseCMN(AttModel):
 
     def infer(self, source_embed, max_len=300, top_k=1):
         outputs = torch.ones((top_k, source_embed.shape[0], 1), dtype=torch.long).to(
-            source_embed.device) * self.bos_id  # (K,B,1) <s>
+            source_embed.device) * self.bos_idx  # (K,B,1) <s>
         scores = torch.zeros((top_k, source_embed.shape[0]), dtype=torch.float32).to(
             source_embed.device)  # (K,B)
 
