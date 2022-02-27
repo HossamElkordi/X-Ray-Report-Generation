@@ -57,7 +57,7 @@ def test_model(test_data, comment):
 
 
 def evaluate_metric(reference, hypothesis):
-    scores = nlgeval.compute_metrics(hypothesis, reference)
+    scores = nlgeval.compute_metrics(hypothesis, [reference])
     print('Bleu_1', scores['Bleu_1'])
     print('Bleu_2', scores['Bleu_2'])
     print('Bleu_3', scores['Bleu_3'])
