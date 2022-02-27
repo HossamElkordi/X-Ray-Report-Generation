@@ -334,8 +334,8 @@ class BaseCMN(AttModel):
         self.cmn = MultiThreadMemory(args.num_heads, args.d_model, topk=args.topk)
 
         self.model = self.make_model(tgt_vocab, self.cmn)
-        self.logit = nn.Linear(args.cmm_size, tgt_vocab)
-        self.out_logit = nn.Linear(args.d_model, args.cmm_size)
+        self.logit = nn.Linear(args.d_vf, tgt_vocab)
+        self.out_logit = nn.Linear(args.d_model, args.d_vf)
 
         self.memory_matrix = nn.Parameter(torch.FloatTensor(args.cmm_size, args.cmm_dim))
         nn.init.normal_(self.memory_matrix, 0, 1 / args.cmm_dim)
