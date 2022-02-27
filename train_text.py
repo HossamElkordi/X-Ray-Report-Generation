@@ -23,7 +23,7 @@ from models import Classifier, TNN
 from baselines.transformer.models import LSTM_Attn
 
 # --- Hyperparameters ---
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=0)
@@ -128,7 +128,9 @@ if __name__ == "__main__":
     val_loader = data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
     test_loader = data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
 
-    model = nn.DataParallel(model).cuda()
+    model=model.to('cuda')
+    model=nn.DataParallel(model)
+    #model = nn.DataParallel(model).cuda()
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=WD)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=MILESTONES)
 
@@ -137,8 +139,8 @@ if __name__ == "__main__":
     last_epoch = -1
     best_metric = 0
 
-    checkpoint_path_from = 'checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
-    checkpoint_path_to = 'checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
+    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
+    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
     
     if RELOAD:
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)
