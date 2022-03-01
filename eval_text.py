@@ -22,7 +22,7 @@ from models import Classifier, TNN
 from baselines.transformer.models import LSTM_Attn
 
 # --- Hyperparameters ---
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=0)
@@ -31,8 +31,8 @@ DATASET_NAME = 'NLMCXR' # MIMIC / NLMCXR
 MODEL_NAME = 'Transformer' # Transformer / LSTM
 BATCH_SIZE = 32
 
-TEXT_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Hyp.txt'.format(DATASET_NAME)
-LABEL_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Lbl.txt'.format(DATASET_NAME)
+TEXT_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_Hyp.txt'.format(DATASET_NAME)
+LABEL_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_Lbl.txt'.format(DATASET_NAME)
 
 if __name__ == "__main__":
     # --- Choose Inputs/Outputs
