@@ -27,12 +27,12 @@ os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=0)
 
-DATASET_NAME = 'MIMIC' # MIMIC / NLMCXR
-MODEL_NAME = 'LSTM' # Transformer / LSTM
+DATASET_NAME = 'NLMCXR' # MIMIC / NLMCXR
+MODEL_NAME = 'Transformer' # Transformer / LSTM
 BATCH_SIZE = 32
 
-TEXT_FILE = 'outputs/{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Hyp.txt'.format(DATASET_NAME)
-LABEL_FILE = 'outputs/{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Lbl.txt'.format(DATASET_NAME)
+TEXT_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Hyp.txt'.format(DATASET_NAME)
+LABEL_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGen_DenseNet121_MaxView2_NumLabel114_NoHistory_Lbl.txt'.format(DATASET_NAME)
 
 if __name__ == "__main__":
     # --- Choose Inputs/Outputs
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         NUM_CLASSES = 2
         
         dataset = TextDataset(text_file=TEXT_FILE, label_file=LABEL_FILE, sources=SOURCES, targets=TARGETS,
-                              vocab_file='/home/hoang/Datasets/NLMCXR/nlmcxr_unigram_1000.model', max_len=1000)
+                              vocab_file='/content/X-Ray-Report-Generation/open-i/nlmcxr_unigram_1000.model', max_len=1000)
         
         VOCAB_SIZE = len(dataset.vocab)
         POSIT_SIZE = dataset.max_len
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     data_loader = data.DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
     model = nn.DataParallel(model).cuda()
 
-    checkpoint_path_from = 'checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
+    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
     last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model)
     print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from, last_epoch, best_metric, test_metric))
     
