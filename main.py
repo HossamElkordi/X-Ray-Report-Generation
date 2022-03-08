@@ -14,7 +14,7 @@ from tqdm import tqdm
 # --- Project Packages ---
 from utils import save, load, train, test, data_to_device, data_concatenate
 from datasets import MIMIC, NLMCXR
-from losses import CELossTotalEval
+from losses import CELossTotalEval, CELossTotal
 from models import CNN, MVCNN, TNN, Classifier, ClsGen, ClsGenInt
 from base_cmn import BaseCMN
 
@@ -195,50 +195,71 @@ def main(args):
         fc_features = 2048
 
     print('Creating Model', args.model_name, '...')
-    visual_extractor = CNN(backbone, args.visual_extractor)
-    visual_extractor = MVCNN(visual_extractor)
-    text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,
-                              dropout=args.dropout,
-                              num_layers=1, num_tokens=vocab_size, num_posits=posit_size)
-    cls_model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes, cnn=visual_extractor,
-                           tnn=text_feat_extractor, fc_features=fc_features, embed_dim=args.num_embed,
-                           num_heads=args.num_heads,
-                           dropout=args.dropout)
-    gen_model = BaseCMN(args, dataset.vocab)
+    model, criterion = None, None
+    if args.model_name == 'Int':
+        pass
+    elif args.model_name == 'ClsGen':
+        visual_extractor = CNN(backbone, args.visual_extractor)
+        visual_extractor = MVCNN(visual_extractor)
+        text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,
+                                  dropout=args.dropout,
+                                  num_layers=1, num_tokens=vocab_size, num_posits=posit_size)
+        cls_model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes,
+                               cnn=visual_extractor,
+                               tnn=text_feat_extractor, fc_features=fc_features, embed_dim=args.num_embed,
+                               num_heads=args.num_heads,
+                               dropout=args.dropout)
+        gen_model = BaseCMN(args, dataset.vocab)
+        model = ClsGen(cls_model, gen_model, args.decease_related_topics, args.num_embed)
+        criterion = CELossTotal(ignore_index=3)
+    elif args.model_name == 'ClsGenInt':
+        visual_extractor = CNN(backbone, args.visual_extractor)
+        visual_extractor = MVCNN(visual_extractor)
+        text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,
+                                  dropout=args.dropout,
+                                  num_layers=1, num_tokens=vocab_size, num_posits=posit_size)
+        cls_model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes,
+                               cnn=visual_extractor, tnn=text_feat_extractor, fc_features=fc_features,
+                               embed_dim=args.num_embed, num_heads=args.num_heads, dropout=args.dropout)
+        gen_model = BaseCMN(args, dataset.vocab)
 
-    cls_gen_model = ClsGen(cls_model, gen_model, args.decease_related_topics, args.num_embed)
-    cls_gen_model = nn.DataParallel(cls_gen_model).cuda()
+        cls_gen_model = ClsGen(cls_model, gen_model, args.decease_related_topics, args.num_embed)
+        cls_gen_model = nn.DataParallel(cls_gen_model).cuda()
 
-    if not args.reload:
-        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}_{}.pt'.format(args.dataset_name,
-                                                                                                 args.visual_extractor,
-                                                                                                 comment, args.trial)
-        last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, cls_gen_model)
-        print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
-                                                                                                  last_epoch,
-                                                                                                  best_metric,
-                                                                                                  test_metric))
+        if not args.reload:
+            checkpoint_path_from = \
+                '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}_{}.pt'.format(args.dataset_name,
+                                                                                  args.visual_extractor,
+                                                                                  comment, args.trial)
+            last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, cls_gen_model)
+            print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(
+                checkpoint_path_from,
+                last_epoch,
+                best_metric,
+                test_metric))
 
-    int_text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,
-                                  dropout=args.dropout, num_layers=1,
-                                  num_tokens=vocab_size, num_posits=posit_size)
-    int_model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes, cnn=None,
-                           tnn=int_text_feat_extractor, embed_dim=args.num_embed,
-                           num_heads=args.num_heads, dropout=args.dropout)
-    int_model = nn.DataParallel(int_model).cuda()
+        int_text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,
+                                      dropout=args.dropout, num_layers=1,
+                                      num_tokens=vocab_size, num_posits=posit_size)
+        int_model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes, cnn=None,
+                               tnn=int_text_feat_extractor, embed_dim=args.num_embed,
+                               num_heads=args.num_heads, dropout=args.dropout)
+        int_model = nn.DataParallel(int_model).cuda()
 
-    if not args.reload:
-        checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}_{}.pt'.format(
-            args.dataset_name,
-            args.decease_related_topics, args.trial)
-        last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
-        print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
-                                                                                                  last_epoch,
-                                                                                                  best_metric,
-                                                                                                  test_metric))
+        if not args.reload:
+            checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}_{}.pt'.format(
+                args.dataset_name,
+                args.decease_related_topics, args.trial)
+            last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
+            print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(
+                checkpoint_path_from,
+                last_epoch,
+                best_metric,
+                test_metric))
 
-    model = ClsGenInt(cls_gen_model.module.cpu(), int_model.module.cpu(), freeze_evaluator=True)
-    criterion = CELossTotalEval(ignore_index=3)
+        model = ClsGenInt(cls_gen_model.module.cpu(), int_model.module.cpu(), freeze_evaluator=True)
+        criterion = CELossTotalEval(ignore_index=3)
+
     print('Done Creating Model')
 
     train_loader = data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
@@ -310,7 +331,8 @@ def parse_agruments():
     parser.add_argument('--visual_extractor', type=str, default='DenseNet121', choices=['DenseNet121', 'resnet101'],
                         help='the visual extractor to be used.')
 
-    parser.add_argument('--model_name', type=str, default='ClsGenInt', help='Model Type.')
+    parser.add_argument('--model_name', type=str, default='ClsGenInt', choices=['ClsGenInt', 'ClsGen', 'Int'],
+                        help='Model Type.')
     parser.add_argument('--sources', type=list, default=['image', 'caption', 'label', 'history'], help='Source Texts.')
     parser.add_argument('--targets', type=list, default=['caption', 'label'], help='Target Texts.')
     parser.add_argument('--kwargs_sources', type=list, default=['image', 'caption', 'label', 'history'],
