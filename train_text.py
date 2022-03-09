@@ -46,46 +46,48 @@ elif DATASET_NAME == 'NLMCXR':
 else:
     raise ValueError('Invalid DATASET_NAME')
 
-if __name__ == "__main__":
+def train_interpreter(args):
+    
+    print('Loading', args.dataset_name, 'dataset...')
+    
+    dataset = None
+    train_data, val_data, test_data = None, None, None
+    
     # --- Choose Inputs/Outputs
-    if MODEL_NAME == 'Transformer':
-        SOURCES = ['caption']
-        TARGETS = ['label']
-        KW_SRC = ['txt'] # kwargs of Classifier
-        KW_TGT = None
-        KW_OUT = None
-        
-    elif MODEL_NAME == 'LSTM':
-        SOURCES = ['caption', 'caption_length']
-        TARGETS = ['label']
-        KW_SRC = ['caption', 'caption_length'] # kwargs of LSTM_Attn
-        KW_TGT = None
-        KW_OUT = None
-        
-    else:
-        raise ValueError('Invalid MODEL_NAME')
+    SOURCES = ['caption']
+    TARGETS = ['label']
+    KW_SRC = ['txt'] # kwargs of Classifier
+    KW_TGT = None
+    KW_OUT = None
+    LR = lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic
+    WD = args.weight_decay
+    NUM_EMBEDS = args.num_embed
+    NUM_HEADS = args.num_heads
+    FWD_DIM = args.fd_dim
+    NUM_LAYERS = 1
+    DROPOUT = args.dropout
         
     # --- Choose a Dataset ---
-    if DATASET_NAME == 'MIMIC':
+    if args.dataset_name == 'MIMIC':
         INPUT_SIZE = (256,256)
         MAX_VIEWS = 2        
         NUM_LABELS = 114 # (14 diseases + 100 top noun-phrases)
         NUM_CLASSES = 2
         
         dataset = MIMIC('/home/hoang/Datasets/MIMIC/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
-        train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False, train_phase=(PHASE == 'TRAIN'))
+        train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False, train_phase=(args.phase == 'train'))
         
         VOCAB_SIZE = len(dataset.vocab)
         POSIT_SIZE = dataset.max_len
         COMMENT = 'MaxView{}_NumLabel{}'.format(MAX_VIEWS, NUM_LABELS)
 
-    elif DATASET_NAME == 'NLMCXR':
+    elif args.dataset_name == 'NLMCXR':
         INPUT_SIZE = (256,256)
         MAX_VIEWS = 2
         NUM_LABELS = 114 # (14 diseases + 100 top noun-phrases)
         NUM_CLASSES = 2
         
-        dataset = NLMCXR('/content/X-Ray-Report-Generation/open-i/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
+        dataset = NLMCXR('/home/hoang/Datasets/NLMCXR/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
         
         VOCAB_SIZE = len(dataset.vocab)
@@ -93,63 +95,41 @@ if __name__ == "__main__":
         COMMENT = 'MaxView{}_NumLabel{}'.format(MAX_VIEWS, NUM_LABELS)
         
     else:
-        raise ValueError('Invalid DATASET_NAME')
+        raise ValueError('Invalid dataset name')
 
-    # --- Choose a Model ---
-    if MODEL_NAME == 'Transformer':
-        LR = 5e-4 
-        WD = 1e-2
-        NUM_EMBEDS = 256
-        NUM_HEADS = 8
-        FWD_DIM = 256
-        NUM_LAYERS = 1
-        DROPOUT = 0.1
-            
-        tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
-        model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=None, tnn=tnn, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
-        criterion = CELoss()
-            
-    elif MODEL_NAME == 'LSTM':
-        # Justin et al. hyper-parameters
-        LR = 5e-4 
-        WD = 1e-2 # Avoid overfitting with L2 regularization
-        NUM_EMBEDS = 256
-        HIDDEN_SIZE = 128
-        DROPOUT = 0.1
-        
-        model = LSTM_Attn(num_tokens=VOCAB_SIZE, embed_dim=NUM_EMBEDS, hidden_size=HIDDEN_SIZE, num_topics=NUM_LABELS, num_states=NUM_CLASSES, dropout=DROPOUT)
-        criterion = CELoss()
+    print('Done Loading Dataset')
+    print('Creating Model', args.model_name, '...')
     
-    else:
-        raise ValueError('Invalid MODEL_NAME')
+    tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
+    model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=None, tnn=tnn, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
+    criterion = CELoss()
 
     # --- Main program ---
-    train_loader = data.DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, num_workers=8, drop_last=True)
-    val_loader = data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
-    test_loader = data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, num_workers=8)
+    train_loader = data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
+    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
+    test_loader = data.DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
 
-    model=model.to('cuda')
-    model=nn.DataParallel(model)
-    #model = nn.DataParallel(model).cuda()
+    model = nn.DataParallel(model).cuda()
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=WD)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=MILESTONES)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.epoch_milestone)
 
+    print('Done Creating Model')
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
     
     last_epoch = -1
     best_metric = 0
 
-    checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
-    checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(DATASET_NAME,MODEL_NAME,COMMENT)
+    checkpoint_path_from = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name,args.model_name,COMMENT)
+    checkpoint_path_to = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name,args.model_name,COMMENT)
     
-    if RELOAD:
+    if args.reload:
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from, last_epoch, best_metric, test_metric))
 
-    if PHASE == 'TRAIN':
+    if args.phase == 'train':
         scaler = torch.cuda.amp.GradScaler() # Reduce floating to 16 bits instead of 32 bits
         
-        for epoch in range(last_epoch+1, EPOCHS):
+        for epoch in range(last_epoch+1, args.epochs):
             print('Epoch:', epoch)
             train_loss = train(train_loader, model, optimizer, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT, scaler=scaler)
             val_loss, val_outputs, val_targets = test(val_loader, model, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT)
@@ -178,7 +158,7 @@ if __name__ == "__main__":
                 print('New Best Metric: {}'.format(best_metric))
                 print('Saved To:', checkpoint_path_to)
             
-    elif PHASE == 'TEST':
+    elif args.phase == 'test':
         test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT)
         
         test_auc = []

@@ -21,11 +21,13 @@ from base_cmn import BaseCMN
 # --- Metrics Evaluation ---
 import nlgeval
 
+# --- Text Trainer ---
+from train_text import train_interpreter
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=123)
-
 
 def train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
                 best_loss, last_epoch, num_epochs, save_path):
@@ -378,4 +380,7 @@ def parse_agruments():
 
 if __name__ == '__main__':
     args = parse_agruments()
-    main(args)
+    if args.model_name == 'Int':
+        train_interpreter(args)
+    else:
+        main(args)
