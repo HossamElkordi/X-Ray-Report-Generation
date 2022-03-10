@@ -198,9 +198,7 @@ def main(args):
 
     print('Creating Model', args.model_name, '...')
     model, criterion = None, None
-    if args.model_name == 'Int':
-        pass
-    elif args.model_name == 'ClsGen':
+    if args.model_name == 'ClsGen':
         visual_extractor = CNN(backbone, args.visual_extractor)
         visual_extractor = MVCNN(visual_extractor)
         text_feat_extractor = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim,

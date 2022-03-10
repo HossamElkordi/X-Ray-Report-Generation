@@ -28,169 +28,142 @@ os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=0)
 
-RELOAD = False # True / False
-PHASE = 'TRAIN' # TRAIN / TEST
-DATASET_NAME = 'NLMCXR' # MIMIC / NLMCXR
-MODEL_NAME = 'Transformer' # Transformer / LSTM
-
-if DATASET_NAME == 'MIMIC':
-    EPOCHS = 20 # Overfitting after 10 epochs
-    BATCH_SIZE = 8 if PHASE == 'TRAIN' else 16 # Fit 1 GPU
-    MILESTONES = [10] # Reduce LR by 10 after reaching milestone epochs
-    
-elif DATASET_NAME == 'NLMCXR':
-    EPOCHS = 20 # Start overfitting after 20 epochs
-    BATCH_SIZE = 8 if PHASE == 'TRAIN' else 16 # Fit 1 GPU
-    MILESTONES = [10] # Reduce LR by 10 after reaching milestone epochs
-    
-else:
-    raise ValueError('Invalid DATASET_NAME')
 
 def train_interpreter(args):
-    
     print('Loading', args.dataset_name, 'dataset...')
-    
-    dataset = None
+
+    vocab_size, posit_size, comment, dataset = None, None, None, None
     train_data, val_data, test_data = None, None, None
-    
-    # --- Choose Inputs/Outputs
-    SOURCES = ['caption']
-    TARGETS = ['label']
-    KW_SRC = ['txt'] # kwargs of Classifier
-    KW_TGT = None
-    KW_OUT = None
-    LR = lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic
-    WD = args.weight_decay
-    NUM_EMBEDS = args.num_embed
-    NUM_HEADS = args.num_heads
-    FWD_DIM = args.fd_dim
-    NUM_LAYERS = 1
-    DROPOUT = args.dropout
-        
     # --- Choose a Dataset ---
     if args.dataset_name == 'MIMIC':
-        INPUT_SIZE = (256,256)
-        MAX_VIEWS = 2        
-        NUM_LABELS = 114 # (14 diseases + 100 top noun-phrases)
-        NUM_CLASSES = 2
-        
-        dataset = MIMIC('/home/hoang/Datasets/MIMIC/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
-        train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False, train_phase=(args.phase == 'train'))
-        
-        VOCAB_SIZE = len(dataset.vocab)
-        POSIT_SIZE = dataset.max_len
-        COMMENT = 'MaxView{}_NumLabel{}'.format(MAX_VIEWS, NUM_LABELS)
+        dataset = MIMIC(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
+                        max_views=args.max_views, sources=args.sources, targets=args.targets)
+        train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False,
+                                                              train_phase=(args.phase == 'train'))
 
+        vocab_size = len(dataset.vocab)
+        posit_size = dataset.max_len
+        comment = 'MaxView{}_NumLabel{}'.format(args.max_views, args.decease_related_topics)
     elif args.dataset_name == 'NLMCXR':
-        INPUT_SIZE = (256,256)
-        MAX_VIEWS = 2
-        NUM_LABELS = 114 # (14 diseases + 100 top noun-phrases)
-        NUM_CLASSES = 2
-        
-        dataset = NLMCXR('/home/hoang/Datasets/NLMCXR/', INPUT_SIZE, view_pos=['AP','PA','LATERAL'], max_views=MAX_VIEWS, sources=SOURCES, targets=TARGETS)
+        dataset = NLMCXR(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
+                         max_views=args.max_views, sources=args.soureces, targets=args.targets)
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
-        
-        VOCAB_SIZE = len(dataset.vocab)
-        POSIT_SIZE = dataset.max_len
-        COMMENT = 'MaxView{}_NumLabel{}'.format(MAX_VIEWS, NUM_LABELS)
-        
+
+        vocab_size = len(dataset.vocab)
+        posit_size = dataset.max_len
+        comment = 'MaxView{}_NumLabel{}'.format(args.max_views, args.decease_related_topics)
     else:
         raise ValueError('Invalid dataset name')
 
     print('Done Loading Dataset')
     print('Creating Model', args.model_name, '...')
-    
-    tnn = TNN(embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, fwd_dim=FWD_DIM, dropout=DROPOUT, num_layers=NUM_LAYERS, num_tokens=VOCAB_SIZE, num_posits=POSIT_SIZE)
-    model = Classifier(num_topics=NUM_LABELS, num_states=NUM_CLASSES, cnn=None, tnn=tnn, embed_dim=NUM_EMBEDS, num_heads=NUM_HEADS, dropout=DROPOUT)
+
+    tnn = TNN(embed_dim=args.num_embed, num_heads=args.num_heads, fwd_dim=args.fd_dim, dropout=args.dropout,
+              num_layers=1, num_tokens=vocab_size, num_posits=posit_size)
+    model = Classifier(num_topics=args.decease_related_topics, num_states=args.num_classes, cnn=None, tnn=tnn,
+                       embed_dim=args.num_embed, num_heads=args.num_heads, dropout=args.dropout)
     criterion = CELoss()
 
     # --- Main program ---
-    train_loader = data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=8, drop_last=True)
-    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
-    test_loader = data.DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=8)
+    train_loader = data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+                                   drop_last=True)
+    val_loader = data.DataLoader(val_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    test_loader = data.DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     model = nn.DataParallel(model).cuda()
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=WD)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.epoch_milestone)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic,
+                            weight_decay=args.weight_decay)
+    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epoch_milestone])
 
     print('Done Creating Model')
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
-    
+
     last_epoch = -1
     best_metric = 0
 
-    checkpoint_path_from = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name,args.model_name,COMMENT)
-    checkpoint_path_to = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name,args.model_name,COMMENT)
-    
+    checkpoint_path_from = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name, args.model_name, comment)
+    checkpoint_path_to = 'checkpoints/{}_{}_{}.pt'.format(args.dataset_name, args.model_name, comment)
+
     if args.reload:
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)
-        print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from, last_epoch, best_metric, test_metric))
+        print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
+                                                                                                  last_epoch,
+                                                                                                  best_metric,
+                                                                                                  test_metric))
 
     if args.phase == 'train':
-        scaler = torch.cuda.amp.GradScaler() # Reduce floating to 16 bits instead of 32 bits
-        
-        for epoch in range(last_epoch+1, args.epochs):
+        scaler = torch.cuda.amp.GradScaler()  # Reduce floating to 16 bits instead of 32 bits
+
+        for epoch in range(last_epoch + 1, args.epochs):
             print('Epoch:', epoch)
-            train_loss = train(train_loader, model, optimizer, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT, scaler=scaler)
-            val_loss, val_outputs, val_targets = test(val_loader, model, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT)
-            test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT)
+            train_loss = train(train_loader, model, optimizer, criterion, device='cuda', kw_src=args.kwargs_sources,
+                               scaler=scaler)
+            val_loss, val_outputs, val_targets = test(val_loader, model, criterion, device='cuda',
+                                                      kw_src=args.kwargs_sources)
+            test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda',
+                                                         kw_src=args.kwargs_sources)
             scheduler.step()
 
             val_metric = []
             test_metric = []
-            for i in range(NUM_LABELS):
+            for i in range(args.decease_related_topics):
                 try:
-                    val_metric.append(metrics.roc_auc_score(val_targets.cpu()[...,i], val_outputs.cpu()[...,i,1]))
+                    val_metric.append(metrics.roc_auc_score(val_targets.cpu()[..., i], val_outputs.cpu()[..., i, 1]))
                 except:
                     pass
                 try:
-                    test_metric.append(metrics.roc_auc_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1]))
+                    test_metric.append(metrics.roc_auc_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1]))
                 except:
                     pass
             val_metric = np.mean([x for x in val_metric if str(x) != 'nan'])
             test_metric = np.mean([x for x in test_metric if str(x) != 'nan'])
-                
+
             print('Validation Metric: {} | Test Metric: {}'.format(val_metric, test_metric))
-            
+
             if best_metric < val_metric:
                 best_metric = val_metric
                 save(checkpoint_path_to, model, optimizer, scheduler, epoch, (val_metric, test_metric))
                 print('New Best Metric: {}'.format(best_metric))
                 print('Saved To:', checkpoint_path_to)
-            
+
     elif args.phase == 'test':
-        test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda', kw_src=KW_SRC, kw_tgt=KW_TGT, kw_out=KW_OUT)
-        
+        test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda',
+                                                     kw_src=args.kwargs_sources)
+
         test_auc = []
         test_f1 = []
         test_prc = []
         test_rec = []
         test_acc = []
-        
+
         threshold = 0.5
-        NUM_LABELS = 14
-        for i in range(NUM_LABELS):
+        num_labels = 14
+        for i in range(num_labels):
             try:
-                test_auc.append(metrics.roc_auc_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1]))
-                test_f1.append(metrics.f1_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1] > threshold))
-                test_prc.append(metrics.precision_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1] > threshold))
-                test_rec.append(metrics.recall_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1] > threshold))
-                test_acc.append(metrics.accuracy_score(test_targets.cpu()[...,i], test_outputs.cpu()[...,i,1] > threshold))
-                
+                test_auc.append(metrics.roc_auc_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1]))
+                test_f1.append(metrics.f1_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1] > threshold))
+                test_prc.append(
+                    metrics.precision_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1] > threshold))
+                test_rec.append(
+                    metrics.recall_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1] > threshold))
+                test_acc.append(
+                    metrics.accuracy_score(test_targets.cpu()[..., i], test_outputs.cpu()[..., i, 1] > threshold))
+
             except:
                 print('An error occurs for label', i)
-                
+
         test_auc = np.mean([x for x in test_auc if str(x) != 'nan'])
         test_f1 = np.mean([x for x in test_f1 if str(x) != 'nan'])
         test_prc = np.mean([x for x in test_prc if str(x) != 'nan'])
         test_rec = np.mean([x for x in test_rec if str(x) != 'nan'])
         test_acc = np.mean([x for x in test_acc if str(x) != 'nan'])
-        
+
         print('Test AUC      : {}'.format(test_auc))
         print('Test F1       : {}'.format(test_f1))
         print('Test Precision: {}'.format(test_prc))
         print('Test Recall   : {}'.format(test_rec))
         print('Test Accuracy : {}'.format(test_acc))
-        
+
     else:
         raise ValueError('Invalid PHASE')
