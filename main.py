@@ -169,7 +169,7 @@ def main(args):
     train_data, val_data, test_data = None, None, None
     if args.dataset_name == 'MIMIC':
         dataset = MIMIC(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
-                        max_views=args.max_views, sources=args.soureces, targets=args.targets)
+                        max_views=args.max_views, sources=args.sources, targets=args.targets)
         train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False,
                                                               train_phase=(args.phase == 'train'))
         vocab_size = len(dataset.vocab)

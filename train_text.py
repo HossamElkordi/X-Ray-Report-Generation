@@ -46,7 +46,7 @@ def train_interpreter(args):
         comment = 'MaxView{}_NumLabel{}'.format(args.max_views, args.decease_related_topics)
     elif args.dataset_name == 'NLMCXR':
         dataset = NLMCXR(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
-                         max_views=args.max_views, sources=args.soureces, targets=args.targets)
+                         max_views=args.max_views, sources=args.sources, targets=args.targets)
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
 
         vocab_size = len(dataset.vocab)
