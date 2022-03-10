@@ -37,7 +37,7 @@ def train_interpreter(args):
     # --- Choose a Dataset ---
     if args.dataset_name == 'MIMIC':
         dataset = MIMIC(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
-                        max_views=args.max_views, sources=args.sources, targets=args.targets)
+                        max_views=args.max_views, sources=['caption'], targets=['label'])
         train_data, val_data, test_data = dataset.get_subsets(pvt=0.9, seed=0, generate_splits=True, debug_mode=False,
                                                               train_phase=(args.phase == 'train'))
 
@@ -46,7 +46,7 @@ def train_interpreter(args):
         comment = 'MaxView{}_NumLabel{}'.format(args.max_views, args.decease_related_topics)
     elif args.dataset_name == 'NLMCXR':
         dataset = NLMCXR(args.dataset_dir, (args.input_size, args.input_size), view_pos=['AP', 'PA', 'LATERAL'],
-                         max_views=args.max_views, sources=args.sources, targets=args.targets)
+                         max_views=args.max_views, sources=['caption'], targets=['label'])
         train_data, val_data, test_data = dataset.get_subsets(seed=123)
 
         vocab_size = len(dataset.vocab)
@@ -97,12 +97,12 @@ def train_interpreter(args):
 
         for epoch in range(last_epoch + 1, args.epochs):
             print('Epoch:', epoch)
-            train_loss = train(train_loader, model, optimizer, criterion, device='cuda', kw_src=args.kwargs_sources,
+            train_loss = train(train_loader, model, optimizer, criterion, device='cuda', kw_src=['txt'],
                                scaler=scaler)
             val_loss, val_outputs, val_targets = test(val_loader, model, criterion, device='cuda',
-                                                      kw_src=args.kwargs_sources)
+                                                      kw_src=['txt'])
             test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda',
-                                                         kw_src=args.kwargs_sources)
+                                                         kw_src=['txt'])
             scheduler.step()
 
             val_metric = []
@@ -129,7 +129,7 @@ def train_interpreter(args):
 
     elif args.phase == 'test':
         test_loss, test_outputs, test_targets = test(test_loader, model, criterion, device='cuda',
-                                                     kw_src=args.kwargs_sources)
+                                                     kw_src=['txt'])
 
         test_auc = []
         test_f1 = []
