@@ -226,7 +226,7 @@ def main(args):
         cls_gen_model = ClsGen(cls_model, gen_model, args.decease_related_topics, args.num_embed)
         cls_gen_model = nn.DataParallel(cls_gen_model).cuda()
 
-        if not args.reload:
+        if not bool(args.reload):
             checkpoint_path_from = \
                 '/content/drive/MyDrive/checkpoints/{}_ClsGen_{}_{}_{}.pt'.format(args.dataset_name,
                                                                                   args.visual_extractor,
@@ -246,7 +246,7 @@ def main(args):
                                num_heads=args.num_heads, dropout=args.dropout)
         int_model = nn.DataParallel(int_model).cuda()
 
-        if not args.reload:
+        if not bool(args.reload):
             checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}_{}.pt'.format(
                 args.dataset_name,
                 args.decease_related_topics, args.trial)
@@ -286,7 +286,7 @@ def main(args):
                                                                                        args.visual_extractor, comment,
                                                                                        args.trial)
 
-    if args.reload:
+    if bool(args.reload):
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)  # Reload
         # last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model) # Fine-tune
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
@@ -307,7 +307,7 @@ def parse_agruments():
 
     # Operation Phase
     parser.add_argument('--phase', type=str, default='train', choices=['train', 'infer', 'test'])
-    parser.add_argument('--reload', type=bool, default=True, help='whether to load a saved model or not')
+    parser.add_argument('--reload', type=int, default=1, help='whether to load a saved model or not')
     parser.add_argument('--trial', type=int, default=1, help='tuning trial number')
 
     # Data input settings

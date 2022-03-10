@@ -85,7 +85,7 @@ def train_interpreter(args):
     checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(args.dataset_name, args.model_name, comment)
     checkpoint_path_to = '/content/drive/MyDrive/checkpoints/{}_{}_{}.pt'.format(args.dataset_name, args.model_name, comment)
 
-    if args.reload:
+    if bool(args.reload):
         last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model, optimizer, scheduler)
         print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(checkpoint_path_from,
                                                                                                   last_epoch,
