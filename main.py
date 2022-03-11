@@ -247,7 +247,7 @@ def main(args):
         int_model = nn.DataParallel(int_model).cuda()
 
         if not bool(args.reload):
-            checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Transformer_MaxView2_NumLabel{}_{}.pt'.format(
+            checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Int_MaxView2_NumLabel{}_{}.pt'.format(
                 args.dataset_name,
                 args.decease_related_topics, args.trial)
             last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
