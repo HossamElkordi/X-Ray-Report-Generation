@@ -184,6 +184,7 @@ def main(args):
                                                             test_outputs.cpu()[..., :NUM_LABELS, 1] > threshold,
                                                             average='micro')))
 
-    if __name__ == "__main__":
-        args = parse_agruments()
-        main(args)
+
+if __name__ == "__main__":
+    args = parse_agruments()
+    main(args)
