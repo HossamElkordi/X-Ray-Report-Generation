@@ -390,7 +390,7 @@ class BaseCMN(AttModel):
                 probs = F.log_softmax(self.logit(out), dim=-1)
                 return probs
         else:
-            return self.beam_search(att_feats)
+            return self.beam_search_infer(att_feats)
         # if seq is not None:
         #     att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
         #     out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
