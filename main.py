@@ -29,8 +29,9 @@ os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=123)
 
+
 def train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
-                best_loss, last_epoch, num_epochs, save_path):
+                best_loss, last_epoch, num_epochs, save_path, sched_type):
     scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(last_epoch + 1, num_epochs):
@@ -40,7 +41,10 @@ def train_model(model, train_loader, val_loader, test_loader, optimizer, criteri
         val_loss = test(val_loader, model, criterion, device='cuda', kw_src=args.kwargs_sources, return_results=False)
         test_loss = test(test_loader, model, criterion, device='cuda', kw_src=args.kwargs_sources, return_results=False)
 
-        scheduler.step()
+        if sched_type == 'ROP':
+            scheduler.step(val_loss)
+        else:
+            scheduler.step()
 
         if best_loss > val_loss:
             best_loss = val_loss
@@ -58,15 +62,47 @@ def test_model(test_data, comment):
         out_file_img.write(test_data.idx_pidsid[i][0] + ' ' + test_data.idx_pidsid[i][1] + '\n')
 
 
-def evaluate_metric(reference, hypothesis):
-    scores = nlgeval.compute_metrics(hypothesis, [reference])
-    print('Bleu_1', scores['Bleu_1'])
-    print('Bleu_2', scores['Bleu_2'])
-    print('Bleu_3', scores['Bleu_3'])
-    print('Bleu_4', scores['Bleu_4'])
-    print('METEOR', scores['METEOR'])
-    print('ROUGE_L', scores['ROUGE_L'])
-    print('CIDEr', scores['CIDEr'])
+def evaluate_metric(gts, gen):
+    # Bleu
+    scorer = nlgeval.Bleu()
+    score = scorer.compute_score(gts, gen)[0]
+    print('Bleu_1:', score[0])
+    print('Bleu_2:', score[1])
+    print('Bleu_3:', score[2])
+    print('Bleu_4:', score[3])
+    # Meteor
+    scorer = nlgeval.Meteor()
+    score = scorer.compute_score(gts, gen)
+    print('Meteor:', score[0])
+    # Rouge-L
+    scorer = nlgeval.Rouge()
+    score = scorer.compute_score(gts, gen)
+    print('Rouge-L:', score[0])
+    # CIDEr
+    scorer = nlgeval.Cider()
+    score = scorer.compute_score(gts, gen)
+    print('CIDEr:', score[0])
+
+
+def decode_report(captions, i, dataset):
+    decoded = ''
+    for j in range(len(captions[i])):
+        tok = dataset.vocab.id_to_piece(int(captions[i, j]))
+        if tok == '</s>':
+            break  # Manually stop generating token after </s> is reached
+        elif tok == '<s>':
+            continue
+        elif tok == '▁':  # space
+            if len(decoded) and decoded[-1] != ' ':
+                decoded += ' '
+        elif tok in [',', '.', '-', ':']:  # or not tok.isalpha():
+            if len(decoded) and decoded[-1] != ' ':
+                decoded += ' ' + tok + ' '
+            else:
+                decoded += tok + ' '
+        else:  # letter
+            decoded += tok
+    return decoded
 
 
 def infer_model(model, dataset, test_data, test_loader, comment):
@@ -78,59 +114,27 @@ def infer_model(model, dataset, test_data, test_loader, comment):
         '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
                                                                       args.visual_extractor, comment), 'w')
     out_file_hyp = open(
-        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
-                                                                      args.visual_extractor, comment), 'w')
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, comment, args.trial), 'w')
     out_file_lbl = open(
-        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
-                                                                      args.visual_extractor, comment), 'w')
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, comment, args.trial), 'w')
+
+    gts, gen = {}, {}
 
     for i in range(len(gen_outputs)):
-        candidate = ''
-        for j in range(len(gen_outputs[i])):
-            tok = dataset.vocab.id_to_piece(int(gen_outputs[i, j]))
-            if tok == '</s>':
-                break  # Manually stop generating token after </s> is reached
-            elif tok == '<s>':
-                continue
-            elif tok == '▁':  # space
-                if len(candidate) and candidate[-1] != ' ':
-                    candidate += ' '
-            elif tok in [',', '.', '-', ':']:  # or not tok.isalpha():
-                if len(candidate) and candidate[-1] != ' ':
-                    candidate += ' ' + tok + ' '
-                else:
-                    candidate += tok + ' '
-            else:  # letter
-                candidate += tok
+        candidate = decode_report(gen_outputs, i, dataset)
         out_file_hyp.write(candidate + '\n')
+        gen['{}'.format(i)] = [candidate]
 
-        reference = ''
-        for j in range(len(gen_targets[i])):
-            tok = dataset.vocab.id_to_piece(int(gen_targets[i, j]))
-            if tok == '</s>':
-                break
-            elif tok == '<s>':
-                continue
-            elif tok == '▁':  # space
-                if len(reference) and reference[-1] != ' ':
-                    reference += ' '
-            elif tok in [',', '.', '-', ':']:  # or not tok.isalpha():
-                if len(reference) and reference[-1] != ' ':
-                    reference += ' ' + tok + ' '
-                else:
-                    reference += tok + ' '
-            else:  # letter
-                reference += tok
+        reference = decode_report(gen_targets, i, dataset)
         out_file_ref.write(reference + '\n')
+        gts['{}'.format(i)] = [reference]
 
     for i in tqdm(range(len(test_data))):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
-    evaluate_metric('/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
-                                                                                  args.visual_extractor, comment),
-                    '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Hyp.txt'.format(args.dataset_name, args.model_name,
-                                                                                  args.visual_extractor, comment)
-                    )
+    evaluate_metric(gts, gen)
 
 
 def infer(data_loader, model, device='cpu', threshold=None):
@@ -249,7 +253,7 @@ def main(args):
         if not bool(args.reload):
             checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_Int_MaxView2_NumLabel{}_{}.pt'.format(
                 args.dataset_name,
-                args.decease_related_topics, args.trial)
+                args.decease_related_topics, args.num_embed)
             last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, int_model)
             print('Reload From: {} | Last Epoch: {} | Validation Metric: {} | Test Metric: {}'.format(
                 checkpoint_path_from,
@@ -271,7 +275,14 @@ def main(args):
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                             lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic,
                             weight_decay=args.weight_decay)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epoch_milestone])
+
+    scheduler = None
+    if args.scheduler == 'ROP':
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=args.patience, verbose=True)
+    elif args.scheduler == 'EXP':
+        scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.gamma)
+    elif args.scheduler == 'COS':
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
 
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
     last_epoch = -1
@@ -295,7 +306,7 @@ def main(args):
                                                                                                   test_metric))
     if args.phase == 'train':
         train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
-                    best_metric, last_epoch, args.epochs, checkpoint_path_to)
+                    best_metric, last_epoch, args.epochs, checkpoint_path_to, args.scheduler)
     elif args.phase == 'test':
         test_model(test_data, comment)
     elif args.phase == 'infer':
@@ -324,8 +335,6 @@ def parse_agruments():
     parser.add_argument('--max_seq_length', type=int, default=60, help='the maximum sequence length of the reports.')
     parser.add_argument('--num_workers', type=int, default=2, help='the number of workers for dataloader.')
     parser.add_argument('--batch_size', type=int, default=16, help='the number of samples for a batch')
-    parser.add_argument('--epoch_milestone', type=int, default=25,
-                        help='Reduce LR by 10 after reaching milestone epochs')
 
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='DenseNet121', choices=['DenseNet121', 'resnet101'],
@@ -372,6 +381,10 @@ def parse_agruments():
     parser.add_argument('--lr_nlm', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
     parser.add_argument('--lr_mimic', type=float, default=3e-6, help='the learning rate for MIMIC-CXR.')
     parser.add_argument('--weight_decay', type=float, default=1e-2, help='the weight decay.')
+    parser.add_argument('--scheduler', type=str, default='ROP', choices=['ROP', 'COS', 'EXP'], help='scheduler type.')
+    parser.add_argument('--patience', type=int, default=3,
+                        help='Reduce LR by 10 after reaching patience epochs if ROP is used')
+    parser.add_argument('--gamma', type=float, default=0.5, help='Reduce LR by gamma each epoch if EXP is used')
 
     return parser.parse_args()
 

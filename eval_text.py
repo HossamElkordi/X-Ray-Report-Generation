@@ -2,27 +2,19 @@
 import argparse
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 import sklearn.metrics as metrics
 
 # --- PyTorch packages ---
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
 import torch.utils.data as data
 
-import torchvision.models as models
-import torchvision.datasets as datasets
-import torchvision.transforms as transforms
-
 # --- Project Packages ---
-from utils import save, load, train, test
-from datasets import MIMIC, NLMCXR, TextDataset
+from utils import load, test
+from datasets import TextDataset
 from models import Classifier, TNN
-from baselines.transformer.models import LSTM_Attn
 
-# --- Hyperparameters ---
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
@@ -32,9 +24,6 @@ torch.manual_seed(seed=0)
 def parse_agruments():
     parser = argparse.ArgumentParser()
 
-    # Operation Phase
-    parser.add_argument('--phase', type=str, default='train', choices=['train', 'infer', 'test'])
-    parser.add_argument('--reload', type=int, default=1, help='whether to load a saved model or not')
     parser.add_argument('--trial', type=int, default=1, help='tuning trial number')
 
     # Data input settings
@@ -48,69 +37,29 @@ def parse_agruments():
     # Data loader settings
     parser.add_argument('--dataset_name', type=str, default='NLMCXR', choices=['NLMCXR', 'MIMICCXR'],
                         help='the dataset to be used.')
-    parser.add_argument('--max_seq_length', type=int, default=60, help='the maximum sequence length of the reports.')
     parser.add_argument('--num_workers', type=int, default=2, help='the number of workers for dataloader.')
     parser.add_argument('--batch_size', type=int, default=16, help='the number of samples for a batch')
-    parser.add_argument('--epoch_milestone', type=int, default=25,
-                        help='Reduce LR by 10 after reaching milestone epochs')
 
-    # Model settings (for visual extractor)
-    parser.add_argument('--visual_extractor', type=str, default='DenseNet121', choices=['DenseNet121', 'resnet101'],
-                        help='the visual extractor to be used.')
-
-    parser.add_argument('--model_name', type=str, default='Int', choices=['ClsGenInt', 'ClsGen', 'Int'],
-                        help='Model Type.')
+    parser.add_argument('--model_name', type=str, default='Int', help='Model Type.')
     parser.add_argument('--sources', type=list, default=['caption'], help='Source Texts.')
     parser.add_argument('--targets', type=list, default=['label'], help='Target Texts.')
     parser.add_argument('--kwargs_sources', type=list, default=['txt'], help='Kwargs Source Texts.')
 
-    # Model settings (for Transformer)
-    parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
-    parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
-    parser.add_argument('--d_vf', type=int, default=2048, help='the dimension of the patch features.')
-    parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
-    parser.add_argument('--num_layers', type=int, default=3, help='the number of layers of Transformer.')
-    parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
-    parser.add_argument('--use_bn', type=int, default=0, help='whether to use batch normalization.')
-    parser.add_argument('--drop_prob_lm', type=float, default=0.5, help='the dropout rate of the output layer.')
-
-    # for Cross-modal Memory
-    parser.add_argument('--topk', type=int, default=32, help='the number of k.')
-    parser.add_argument('--cmm_size', type=int, default=2048, help='the numebr of cmm size.')
-    parser.add_argument('--cmm_dim', type=int, default=512, help='the dimension of cmm dimension.')
-
-    # Sample related
-    parser.add_argument('--sample_method', type=str, default='beam_search',
-                        help='the sample methods to sample a report.')
-    parser.add_argument('--beam_size', type=int, default=3, help='the beam size when beam searching.')
-    parser.add_argument('--temperature', type=float, default=1.0, help='the temperature when sampling.')
-    parser.add_argument('--sample_n', type=int, default=1, help='the sample number per image.')
-    parser.add_argument('--group_size', type=int, default=1, help='the group size.')
-    parser.add_argument('--output_logsoftmax', type=int, default=1, help='whether to output the probabilities.')
-    parser.add_argument('--decoding_constraint', type=int, default=0, help='whether decoding constraint.')
-    parser.add_argument('--block_trigrams', type=int, default=1, help='whether to use block trigrams.')
-
     parser.add_argument('--num_embed', type=int, default=2048, help='visual and textual embedding size')
     parser.add_argument('--fd_dim', type=int, default=256, help='forward dimension')
-
-    # Trainer settings
-    parser.add_argument('--epochs', type=int, default=50, help='the number of training epochs.')
-    parser.add_argument('--lr_nlm', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
-    parser.add_argument('--lr_mimic', type=float, default=3e-6, help='the learning rate for MIMIC-CXR.')
-    parser.add_argument('--weight_decay', type=float, default=1e-2, help='the weight decay.')
 
     return parser.parse_args()
 
 
 def main(args):
-    TEXT_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_Hyp.txt'.format(
-        args.dataset_name)
-    LABEL_FILE = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_Lbl.txt'.format(
-        args.dataset_name)
+    hyp_file = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_{}_Hyp.txt'.\
+        format(args.dataset_name, args.trial)
+    lbl_file = '/content/drive/MyDrive/outputs/x_{}_ClsGenInt_DenseNet121_MaxView2_NumLabel114_History_{}_Lbl.txt'.\
+        format(args.dataset_name, args.trial)
 
     vocab_size, posit_size, comment, dataset = None, None, None, None
     if args.dataset_name == 'MIMIC':
-        dataset = TextDataset(text_file=TEXT_FILE, label_file=LABEL_FILE, sources=args.sources, targets=args.targets,
+        dataset = TextDataset(text_file=hyp_file, label_file=lbl_file, sources=args.sources, targets=args.targets,
                               vocab_file=args.dataset_dir+'mimic_unigram_1000.model', max_len=1000)
 
         vocab_size = len(dataset.vocab)
@@ -118,7 +67,7 @@ def main(args):
         comment = 'MaxView{}_NumLabel{}'.format(args.max_views, args.decease_related_topics)
 
     elif args.dataset_name == 'NLMCXR':
-        dataset = TextDataset(text_file=TEXT_FILE, label_file=LABEL_FILE, sources=args.sources, targets=args.targets,
+        dataset = TextDataset(text_file=hyp_file, label_file=lbl_file, sources=args.sources, targets=args.targets,
                               vocab_file=args.dataset_dir+'nlmcxr_unigram_1000.model', max_len=1000)
 
         vocab_size = len(dataset.vocab)
@@ -134,8 +83,8 @@ def main(args):
     model = nn.DataParallel(model).cuda()
     checkpoint_path_from = '/content/drive/MyDrive/checkpoints/{}_{}_{}_{}.pt'.format(args.dataset_name,
                                                                                       args.model_name,
-                                                                                      comment, args.trial)
-    last_epoch, (best_metric, test_metric) = load(checkpoint_path_from, model)
+                                                                                      comment, args.num_embed)
+    last_epoch, (_, _) = load(checkpoint_path_from, model)
     test_loss, test_outputs, test_targets = test(data_loader, model, device='cuda', kw_src=args.kwargs_sources)
 
     # --- Evaluation ---

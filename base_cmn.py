@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from att_model import pack_wrapper, AttModel
+from beam_search import BeamSearch
 
 
 def clones(module, N):
@@ -328,6 +329,8 @@ class BaseCMN(AttModel):
         self.num_heads = args.num_heads
         self.dropout = args.dropout
         self.topk = args.topk
+        self.max_seq_length = args.max_seq_length
+        self.phase = args.phase
 
         tgt_vocab = self.vocab_size
 
@@ -380,11 +383,37 @@ class BaseCMN(AttModel):
             att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
             out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
             out = self.out_logit(out)
-            outputs = F.log_softmax(self.logit(out), dim=-1)
-            probs = torch.exp(outputs)
-            return probs, out
+            if self.phase == 'train':
+                probs = F.softmax(self.logit(out), dim=-1)
+                return probs, out
+            else:
+                probs = F.log_softmax(self.logit(out), dim=-1)
+                return probs
         else:
-            return self.infer(att_feats)
+            return self.beam_search(att_feats)
+        # if seq is not None:
+        #     att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
+        #     out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
+        #     out = self.out_logit(out)
+        #     outputs = F.log_softmax(self.logit(out), dim=-1)
+        #     probs = torch.exp(outputs)
+        #     return probs, out
+        # else:
+        #     return self.infer(att_feats)
+
+    def beam_search_infer(self, att_feats):
+        bs = BeamSearch(self, self.max_seq_length, self.eos_idx, self.topk)
+        return bs.apply(att_feats)
+
+    def step(self, t, prev_output, att_feats):
+        if t == 0:
+            if isinstance(att_feats, torch.Tensor):
+                it = att_feats.data.new_full((att_feats.shape[0], 1), self.bos_idx).long()
+            else:
+                it = att_feats[0].data.new_full((att_feats[0].shape[0], 1), self.bos_idx).long()
+        else:
+            it = prev_output
+        return self._forward(att_feats, it)
 
     def infer(self, source_embed, max_len=300, top_k=1):
         outputs = torch.ones((top_k, source_embed.shape[0], 1), dtype=torch.long).to(
