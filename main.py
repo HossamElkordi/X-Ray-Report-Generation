@@ -10,6 +10,7 @@ import torch.utils.data as data
 
 # --- Helper Packages ---
 from tqdm import tqdm
+import numpy as np
 
 # --- Project Packages ---
 from utils import save, load, train, test, data_to_device, data_concatenate
@@ -28,6 +29,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 torch.set_num_threads(1)
 torch.manual_seed(seed=123)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+np.random.seed(123)
 
 
 def train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
@@ -150,13 +154,13 @@ def infer(data_loader, model, device='cpu', threshold=None):
 
             # Use single input if there is no clinical history
             if threshold is not None:
-                output = model(image=source[0], history=source[3], threshold=threshold)
+                output, _ = model(image=source[0], history=source[3], threshold=threshold)
                 # output = model(image=source[0], threshold=threshold)
                 # output = model(image=source[0], history=source[3], label=source[2])
                 # output = model(image=source[0], label=source[2])
             else:
                 # output = model(source[0], source[1])
-                output = model(source[0])
+                output, _ = model(source[0])
 
             outputs.append(data_to_device(output))
             targets.append(data_to_device(target))
@@ -272,9 +276,16 @@ def main(args):
     test_loader = data.DataLoader(test_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
 
     model = nn.DataParallel(model).cuda()
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-                            lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic,
-                            weight_decay=args.weight_decay)
+
+    gen_params = list(map(id, model.module.clsgen.generator.parameters()))
+    clsint_params = filter(lambda x: id(x) not in gen_params, model.parameters())
+    optim_arguments = []
+    clsint_args = {'params': clsint_params, 'lr': args.lr_clsint, 'weight_decay': args.weight_decay_clsint}
+    gen_args = {'params': model.module.clsgen.generator.parameters(), 'lr': args.lr_gen,
+                'weight_decay': args.weight_decay_gen}
+    optim_arguments.append(clsint_args)
+    optim_arguments.append(gen_args)
+    optimizer = optim.AdamW(optim_arguments)
 
     scheduler = None
     if args.scheduler == 'ROP':
@@ -378,9 +389,10 @@ def parse_agruments():
 
     # Trainer settings
     parser.add_argument('--epochs', type=int, default=50, help='the number of training epochs.')
-    parser.add_argument('--lr_nlm', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
-    parser.add_argument('--lr_mimic', type=float, default=3e-6, help='the learning rate for MIMIC-CXR.')
-    parser.add_argument('--weight_decay', type=float, default=1e-2, help='the weight decay.')
+    parser.add_argument('--lr_gen', type=float, default=5e-4, help='the learning rate for NLM-CXR.')
+    parser.add_argument('--lr_clsint', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
+    parser.add_argument('--weight_decay_gen', type=float, default=5e-5, help='the weight decay.')
+    parser.add_argument('--weight_decay_clsint', type=float, default=1e-2, help='the weight decay.')
     parser.add_argument('--scheduler', type=str, default='ROP', choices=['ROP', 'COS', 'EXP'], help='scheduler type.')
     parser.add_argument('--patience', type=int, default=3,
                         help='Reduce LR by 10 after reaching patience epochs if ROP is used')
