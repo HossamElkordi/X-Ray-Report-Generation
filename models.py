@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 # --- Transformer Modules ---
 class MultiheadAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads, dropout=0.0):
+    def __init__(self, embed_dim, num_heads=1, dropout=0.0):
         super().__init__()
         self.attention = nn.MultiheadAttention(embed_dim, num_heads, dropout)
         self.normalize = nn.LayerNorm(embed_dim)
@@ -19,6 +19,40 @@ class MultiheadAttention(nn.Module):
         embed = self.normalize(embed + query)  # (Q,B,E)
         embed = embed.permute(1, 0, 2)  # (B,Q,E)
         return embed, att  # (B,Q,E), (B,Q,V)
+
+
+class TwoPathAttention(nn.Module):
+    def __init__(self, embed_sizes, dropout=0.0, batch_first=True):
+        super().__init__()
+        self.lin = nn.Linear(embed_sizes[1], embed_sizes[0])
+        self.attention = nn.MultiheadAttention(embed_sizes[0], 1, dropout)
+
+    def forward(self, in_512, in_1024):
+        in_2 = self.lin(in_1024)
+        o_1 = self.attention(in_512, in_2, in_512, need_weights=False)
+        o_2 = self.attention(in_2, in_512, in_2, need_weights=False)
+        return torch.cat([o_1[0], o_2[0]], dim=2)
+
+
+class TwoPathClassifier(nn.Module):
+    def __init__(self, num_topics, num_states, cnn=None, tnn=None,
+                 fc_features=2048, embed_dim=(512, 1024), num_heads=1, dropout=0.1):
+        self.classifier_0 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[0],
+                                       num_heads, dropout)
+        self.classifier_1 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[1],
+                                       num_heads, dropout)
+        self.attention = TwoPathAttention(embed_dim, dropout)
+
+    def forward(self, img=None, txt=None, lbl=None, txt_embed=None, pad_mask=None, pad_id=3, threshold=0.5,
+                get_embed=False, get_txt_att=False):
+        out_0 = self.classifier_0(img, txt, lbl, txt_embed, pad_mask, pad_id, threshold, get_embed, get_txt_att)
+        out_1 = self.classifier_1(img, txt, lbl, txt_embed, pad_mask, pad_id, threshold, get_embed, get_txt_att)
+        if get_embed:
+            return self.attention(out_0[0], out_1[0]), out_1[1]
+        elif get_txt_att and (txt is not None or txt_embed is not None):
+            return self.attention(out_0[0], out_1[0]), out_1[1]
+        else:
+            return self.attention(out_0[0], out_1[0])
 
 
 class PointwiseFeedForward(nn.Module):
