@@ -111,6 +111,7 @@ def train(data_loader, model, optimizer, criterion, scheduler=None, device='cpu'
             # Back-propagate and update weights
             optimizer.zero_grad()
             scaler.scale(loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
             scaler.step(optimizer)
             scaler.update()
             if scheduler is not None:
