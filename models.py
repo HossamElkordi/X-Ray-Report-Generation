@@ -37,6 +37,7 @@ class TwoPathAttention(nn.Module):
 class TwoPathClassifier(nn.Module):
     def __init__(self, num_topics, num_states, cnn=None, tnn=None,
                  fc_features=2048, embed_dim=(512, 1024), num_heads=1, dropout=0.1):
+        super().__init__()
         self.classifier_0 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[0],
                                        num_heads, dropout)
         self.classifier_1 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[1],
