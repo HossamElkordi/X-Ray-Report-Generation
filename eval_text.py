@@ -30,6 +30,7 @@ def parse_agruments():
     parser.add_argument('--dataset_dir', type=str, default='/content/x_ray_report_generation/open-i',
                         help='the path to the dataset.')
     parser.add_argument('--input_size', type=int, default=256, help='Input Image Size.')
+    parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
     parser.add_argument('--max_views', type=int, default=2, help='Max Number of X-Ray Views per dataset sample.')
     parser.add_argument('--num_classes', type=int, default=2, help='Positive and Negative Classification.')
     parser.add_argument('--decease_related_topics', type=int, default=114, help='Decease Related Topics.')
