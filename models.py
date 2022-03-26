@@ -38,9 +38,9 @@ class TwoPathClassifier(nn.Module):
     def __init__(self, num_topics, num_states, cnn=None, tnn=None,
                  fc_features=2048, embed_dim=(512, 1024), num_heads=1, dropout=0.1):
         super().__init__()
-        self.classifier_0 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[0],
+        self.classifier_0 = Classifier(num_topics, num_states, cnn, tnn[0], fc_features, embed_dim[0],
                                        num_heads, dropout)
-        self.classifier_1 = Classifier(num_topics, num_states, cnn, tnn, fc_features, embed_dim[1],
+        self.classifier_1 = Classifier(num_topics, num_states, cnn, tnn[1], fc_features, embed_dim[1],
                                        num_heads, dropout)
         self.attention = TwoPathAttention(embed_dim, dropout)
 
@@ -49,11 +49,11 @@ class TwoPathClassifier(nn.Module):
         out_0 = self.classifier_0(img, txt, lbl, txt_embed, pad_mask, pad_id, threshold, get_embed, get_txt_att)
         out_1 = self.classifier_1(img, txt, lbl, txt_embed, pad_mask, pad_id, threshold, get_embed, get_txt_att)
         if get_embed:
-            return self.attention(out_0[0], out_1[0]), out_1[1]
+            return out_1[0], self.attention(out_0[1], out_1[1])
         elif get_txt_att and (txt is not None or txt_embed is not None):
-            return self.attention(out_0[0], out_1[0]), out_1[1]
+            return out_1[0], self.attention(out_0[1], out_1[1])
         else:
-            return self.attention(out_0[0], out_1[0])
+            return self.attention(out_0, out_1)
 
 
 class PointwiseFeedForward(nn.Module):
