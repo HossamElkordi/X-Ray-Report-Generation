@@ -31,6 +31,7 @@ def parse_agruments():
                         help='the path to the dataset.')
     parser.add_argument('--input_size', type=int, default=256, help='Input Image Size.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
+    parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
     parser.add_argument('--max_views', type=int, default=2, help='Max Number of X-Ray Views per dataset sample.')
     parser.add_argument('--num_classes', type=int, default=2, help='Positive and Negative Classification.')
     parser.add_argument('--decease_related_topics', type=int, default=114, help='Decease Related Topics.')
