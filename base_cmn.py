@@ -383,23 +383,11 @@ class BaseCMN(AttModel):
             att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
             out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
             out = self.out_logit(out)
-            if self.phase == 'train':
-                probs = F.softmax(self.logit(out), dim=-1)
-                return probs, out
-            else:
-                probs = F.log_softmax(self.logit(out), dim=-1)
-                return probs
+            outputs = F.log_softmax(self.logit(out), dim=-1)
+            probs = torch.exp(outputs)
+            return probs, out
         else:
-            return self.beam_search_infer(att_feats)
-        # if seq is not None:
-        #     att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
-        #     out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
-        #     out = self.out_logit(out)
-        #     outputs = F.log_softmax(self.logit(out), dim=-1)
-        #     probs = torch.exp(outputs)
-        #     return probs, out
-        # else:
-        #     return self.infer(att_feats)
+            return self.infer(att_feats)
 
     def beam_search_infer(self, att_feats):
         bs = BeamSearch(self, self.max_seq_length, self.eos_idx, self.topk)
