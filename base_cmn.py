@@ -388,7 +388,7 @@ class BaseCMN(AttModel):
         else:
             return self.infer(att_feats)
 
-    def nuc_sample(self, source_embed, max_len=300, p=0.995):
+    def nuc_sample(self, source_embed, max_len=300, p=0.99999999):
         outputs = torch.ones((source_embed.shape[0], 1), dtype=torch.long).to(
             source_embed.device) * self.bos_idx  # (B,1) <s>
 
@@ -401,10 +401,9 @@ class BaseCMN(AttModel):
             to_sample_from = sorted_p.clone()
             to_sample_from[cdf > p] = 0
             nxt_i = to_sample_from.multinomial(1)
-            nxt_tokens = sorted_i[nxt_i]
-            outputs.append(nxt_tokens)
+            nxt_tokens = sorted_i.gather(1, nxt_i)
+            outputs = torch.cat((outputs, nxt_tokens), 1)
         return outputs
-
 
     def infer(self, source_embed, max_len=300, top_k=1):
         outputs = torch.ones((top_k, source_embed.shape[0], 1), dtype=torch.long).to(
