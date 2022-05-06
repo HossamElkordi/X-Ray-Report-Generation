@@ -11,7 +11,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from att_model import pack_wrapper, AttModel
-from beam_search import BeamSearch
 
 
 def clones(module, N):
@@ -389,19 +388,23 @@ class BaseCMN(AttModel):
         else:
             return self.infer(att_feats)
 
-    def beam_search_infer(self, att_feats):
-        bs = BeamSearch(self, self.max_seq_length, self.eos_idx, self.topk)
-        return bs.apply(att_feats)
+    def nuc_sample(self, source_embed, max_len=300, p=0.995):
+        outputs = torch.ones((source_embed.shape[0], 1), dtype=torch.long).to(
+            source_embed.device) * self.bos_idx  # (B,1) <s>
 
-    def step(self, t, prev_output, att_feats):
-        if t == 0:
-            if isinstance(att_feats, torch.Tensor):
-                it = att_feats.data.new_full((att_feats.shape[0], 1), self.bos_idx).long()
-            else:
-                it = att_feats[0].data.new_full((att_feats[0].shape[0], 1), self.bos_idx).long()
-        else:
-            it = prev_output
-        return self._forward(att_feats, it)
+        for _ in range(max_len):
+            att, emb = self._forward(source_embed, outputs)
+            att = att[:, -1, :]
+
+            sorted_p, sorted_i = torch.sort(att, descending=True)
+            cdf = torch.cumsum(sorted_p, dim=-1)
+            to_sample_from = sorted_p.clone()
+            to_sample_from[cdf > p] = 0
+            nxt_i = to_sample_from.multinomial(1)
+            nxt_tokens = sorted_i[nxt_i]
+            outputs.append(nxt_tokens)
+        return outputs
+
 
     def infer(self, source_embed, max_len=300, top_k=1):
         outputs = torch.ones((top_k, source_embed.shape[0], 1), dtype=torch.long).to(
