@@ -107,13 +107,37 @@ def decode_report(captions, i, dataset):
         else:  # letter
             decoded += tok
     return decoded
+    
+
+def rt_decode_report(captions, i, dataset):
+    decoded = ''
+    #print(i," : ",captions[i])
+    for j in range(len(captions[i])):
+        tok = dataset.vocab.id_to_piece(int(captions[i, j]))
+        if tok == '</s>':
+            break  # Manually stop generating token after </s> is reached
+        elif tok == '<s>':
+            continue
+        elif tok == '▁':  # space
+            if len(decoded) and decoded[-1] != ' ':
+                decoded += ' '
+        elif tok in [',', '.', '-', ':']:  # or not tok.isalpha():
+            if len(decoded) and decoded[-1] != ' ':
+                decoded += ' ' + tok + ' '
+            else:
+                decoded += tok + ' '
+        else:  # letter
+            decoded += tok
+    #print(i," : ",decoded)
+    return decoded
 
 
 def infer_model(model, dataset, test_data, test_loader, comment):
-    txt_test_outputs, txt_test_targets = infer(test_loader, model, device='cuda', threshold=0.25)
+    txt_test_outputs, txt_test_targets = infer(test_loader, model,dataset, device='cuda', threshold=0.25,)
     gen_outputs = txt_test_outputs[0]
+    print()
     gen_targets = txt_test_targets[0]
-
+ 
     out_file_ref = open(
         '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_Ref.txt'.format(args.dataset_name, args.model_name,
                                                                       args.visual_extractor, comment), 'w')
@@ -123,35 +147,41 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     out_file_lbl = open(
         '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_{}_Lbl.txt'.format(args.dataset_name, args.model_name,
                                                                       args.visual_extractor, comment, args.trial), 'w')
-
+ 
     gts, gen = {}, {}
-
-    for i in range(len(gen_outputs)):
-        candidate = decode_report(gen_outputs, i, dataset)
+ 
+    for i in range(len(txt_test_outputs)):
+        candidate = decode_report(txt_test_outputs, i, dataset)
         out_file_hyp.write(candidate + '\n')
         gen['{}'.format(i)] = [candidate]
-
+ 
         reference = decode_report(gen_targets, i, dataset)
         out_file_ref.write(reference + '\n')
         gts['{}'.format(i)] = [reference]
-
+ 
     for i in tqdm(range(len(test_data))):
         target = test_data[i][1]  # caption, label
         out_file_lbl.write(' '.join(map(str, target[1])) + '\n')
     evaluate_metric(gts, gen)
-
-
-def infer(data_loader, model, device='cpu', threshold=None):
+ 
+ 
+def infer(data_loader, model,dataset, device='cpu', threshold=None):
     model.eval()
     outputs = []
     targets = []
-
+    rt_out = open(
+        '/content/drive/MyDrive/outputs/x_{}_{}_{}_{}_rt.txt'.format(args.dataset_name, args.model_name,
+                                                                      args.visual_extractor, args.trial), 'w')
+ 
     with torch.no_grad():
         prog_bar = tqdm(data_loader)
         for i, (source, target) in enumerate(prog_bar):
+            #if i==2:
+            #  break
+            temp=[]
             source = data_to_device(source, device)
             target = data_to_device(target, device)
-
+ 
             # Use single input if there is no clinical history
             if threshold is not None:
                 output, _ = model(image=source[0], history=source[3], threshold=threshold)
@@ -161,13 +191,17 @@ def infer(data_loader, model, device='cpu', threshold=None):
             else:
                 # output = model(source[0], source[1])
                 output, _ = model(source[0])
-
+            temp.append(data_to_device(output))
+            temp=data_concatenate(temp)
+            for k in range(len(temp)):
+              candidate = decode_report(temp, k, dataset)
+ 
+              print(candidate, file=rt_out, flush=True)
             outputs.append(data_to_device(output))
             targets.append(data_to_device(target))
-
         outputs = data_concatenate(outputs)
         targets = data_concatenate(targets)
-
+ 
     return outputs, targets
 
 
