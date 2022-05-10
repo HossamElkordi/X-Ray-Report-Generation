@@ -328,6 +328,8 @@ def main(args):
         scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.gamma)
     elif args.scheduler == 'COS':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
+    elif args.scheduler == 'STEP':
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones)
 
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
     last_epoch = -1
@@ -427,10 +429,11 @@ def parse_agruments():
     parser.add_argument('--lr_clsint', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
     parser.add_argument('--weight_decay_gen', type=float, default=5e-5, help='the weight decay.')
     parser.add_argument('--weight_decay_clsint', type=float, default=1e-2, help='the weight decay.')
-    parser.add_argument('--scheduler', type=str, default='ROP', choices=['ROP', 'COS', 'EXP'], help='scheduler type.')
+    parser.add_argument('--scheduler', type=str, default='ROP', choices=['ROP', 'COS', 'EXP', 'STEP'], help='scheduler type.')
     parser.add_argument('--patience', type=int, default=3,
                         help='Reduce LR by 10 after reaching patience epochs if ROP is used')
     parser.add_argument('--gamma', type=float, default=0.5, help='Reduce LR by gamma each epoch if EXP is used')
+    parser.add_argument('--milestone', type=int, default=25, help='Reduce LR by each n epochs')
 
     return parser.parse_args()
 
