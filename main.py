@@ -433,7 +433,7 @@ def parse_agruments():
     parser.add_argument('--patience', type=int, default=3,
                         help='Reduce LR by 10 after reaching patience epochs if ROP is used')
     parser.add_argument('--gamma', type=float, default=0.5, help='Reduce LR by gamma each epoch if EXP is used')
-    parser.add_argument('--milestone', type=int, default=25, help='Reduce LR by each n epochs')
+    parser.add_argument('--milestones', type=int, default=25, help='Reduce LR by each n epochs')
 
     return parser.parse_args()
 
