@@ -329,7 +329,7 @@ def main(args):
     elif args.scheduler == 'COS':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
     elif args.scheduler == 'STEP':
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.milestones)
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.milestones])
 
     print('Total Parameters:', sum(p.numel() for p in model.parameters()))
     last_epoch = -1
