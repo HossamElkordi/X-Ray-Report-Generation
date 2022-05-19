@@ -88,7 +88,7 @@ class CELossTotalEval(nn.Module):
         self.CELossShift = CELossShift(ignore_index=ignore_index)
 
     def forward(self, output, target):
-        return self.CELossShift(output[0], target[0]) + ulLoss(output[0]) + self.CELoss(output[1], target[1]) + self.CELoss(output[2],
+        return self.CELossShift(output[0], target[0]) + 0.7*ulLoss(output[0]) + self.CELoss(output[1], target[1]) + self.CELoss(output[2],
                                                                                                         target[1])
 
 
@@ -103,10 +103,10 @@ class CELossTransfer(nn.Module):
 
 
 def ulLoss(output):
-        pred_toks = output.argmax(dim=2, keepdim=True).reshape(output.size(0),1,output.size(2))
-        mask = ngram_repeat_mask(pred_toks, 4).type_as(output)
+        pred_toks = output.argmax(dim=2, keepdim=True).reshape(output.size(0),output.size(2))
+        mask = ngram_repeat_mask(pred_toks, 2).type_as(output)
         pred_lprobs = output.view(-1, output.size(2)).gather(1, pred_toks.view(-1, 1))
-        one_minus_probs = torch.clamp((1.0 - pred_lprobs.exp()), min=1e-20).view(pred_toks.size(0), pred_toks.size(2))
+        one_minus_probs = torch.clamp((1.0 - pred_lprobs), min=1e-20).view(pred_toks.size(0), pred_toks.size(1))
         loss = -torch.log(one_minus_probs) * mask
         return loss.sum()
 
