@@ -234,7 +234,7 @@ def main(args):
         backbone = torch.hub.load('pytorch/vision:v0.10.0', 'densenet121', pretrained=True)
         fc_features = 1024
 
-    elif args.visual_extractor == 'DenseNet121':
+    elif args.visual_extractor == 'resnet101':
         backbone = torch.hub.load('pytorch/vision:v0.10.0', 'resnet101', pretrained=True)
         fc_features = 2048
 
