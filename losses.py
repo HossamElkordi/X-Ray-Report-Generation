@@ -88,7 +88,7 @@ class CELossTotalEval(nn.Module):
         self.CELossShift = CELossShift(ignore_index=ignore_index)
 
     def forward(self, output, target):
-        return self.CELossShift(output[0], target[0]) + 0.7*ulLoss(output[0]) + self.CELoss(output[1], target[1]) + self.CELoss(output[2],
+        return self.CELossShift(output[0], target[0]) + self.CELoss(output[1], target[1]) + self.CELoss(output[2],
                                                                                                         target[1])
 
 

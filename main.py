@@ -311,15 +311,9 @@ def main(args):
 
     model = nn.DataParallel(model).cuda()
 
-    gen_params = list(map(id, model.module.clsgen.generator.parameters()))
-    clsint_params = filter(lambda x: id(x) not in gen_params, model.parameters())
-    optim_arguments = []
-    clsint_args = {'params': clsint_params, 'lr': args.lr_clsint, 'weight_decay': args.weight_decay_clsint}
-    gen_args = {'params': model.module.clsgen.generator.parameters(), 'lr': args.lr_gen,
-                'weight_decay': args.weight_decay_gen}
-    optim_arguments.append(clsint_args)
-    optim_arguments.append(gen_args)
-    optimizer = optim.AdamW(optim_arguments)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr_nlm if args.dataset_name == 'NLMCXR' else args.lr_mimic,
+                            weight_decay=args.weight_decay)
 
     scheduler = None
     if args.scheduler == 'ROP':
@@ -425,10 +419,9 @@ def parse_agruments():
 
     # Trainer settings
     parser.add_argument('--epochs', type=int, default=50, help='the number of training epochs.')
-    parser.add_argument('--lr_gen', type=float, default=5e-4, help='the learning rate for NLM-CXR.')
-    parser.add_argument('--lr_clsint', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
-    parser.add_argument('--weight_decay_gen', type=float, default=5e-5, help='the weight decay.')
-    parser.add_argument('--weight_decay_clsint', type=float, default=1e-2, help='the weight decay.')
+    parser.add_argument('--lr_mimic', type=float, default=3e-6, help='the learning rate for NLM-CXR.')
+    parser.add_argument('--lr_nlm', type=float, default=3e-5, help='the learning rate for NLM-CXR.')
+    parser.add_argument('--weight_decay', type=float, default=5e-5, help='the weight decay.')
     parser.add_argument('--scheduler', type=str, default='ROP', choices=['ROP', 'COS', 'EXP', 'STEP'], help='scheduler type.')
     parser.add_argument('--patience', type=int, default=3,
                         help='Reduce LR by 10 after reaching patience epochs if ROP is used')

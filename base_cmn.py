@@ -74,6 +74,9 @@ class Transformer(nn.Module):
         embeddings = embeddings + responses
         # Memory querying and responding for textual features
 
+        # dec1 = self.decoder[0](embeddings, memory, src_mask, tgt_mask, past=past)
+        # dec2 = self.decoder[1](embeddings, memory, src_mask, tgt_mask, past=past)
+
         return self.decoder(embeddings, memory, src_mask, tgt_mask, past=past)
 
 
@@ -309,6 +312,8 @@ class BaseCMN(AttModel):
         attn = MultiHeadedAttention(self.num_heads, self.d_model)
         ff = PositionwiseFeedForward(self.d_model, self.d_ff, self.dropout)
         position = PositionalEncoding(self.d_model, self.dropout)
+        # dec1 = Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.num_layers)
+        # dec2 = Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.num_layers)
         model = Transformer(
             Encoder(EncoderLayer(self.d_model, c(attn), c(ff), self.dropout), self.num_layers),
             Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.num_layers),
@@ -382,9 +387,8 @@ class BaseCMN(AttModel):
             att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
             out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
             out = self.out_logit(out)
-            outputs = F.log_softmax(self.logit(out), dim=-1)
-            probs = torch.exp(outputs)
-            return probs, out
+            prob = F.softmax(self.logit(out), dim=-1)
+            return prob, out
         else:
             return self.infer(att_feats)
 
