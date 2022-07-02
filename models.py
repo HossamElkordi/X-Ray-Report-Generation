@@ -386,25 +386,24 @@ class ClsGen(nn.Module):
         self.label_embedding = nn.Embedding(num_topics, embed_dim)
 
     def forward(self, image, history=None, caption=None, label=None, threshold=0.15, bos_id=1, eos_id=2, pad_id=3,
-                max_len=300, get_emb=False):
+                max_len=300, get_emb=False, use_rl=False):
         label = label.long() if label is not None else label
         img_mlc, img_emb = self.classifier(img=image, txt=history, lbl=label, threshold=threshold, pad_id=pad_id,
                                            get_embed=True)  # (B,T,C), (B,T,E)
         lbl_idx = torch.arange(img_emb.shape[1]).unsqueeze(0).repeat(img_emb.shape[0], 1).to(img_emb.device)  # (B,T)
         lbl_emb = self.label_embedding(lbl_idx)  # (B,T,E)
 
+        src_emb = img_emb + lbl_emb
         if caption is not None:
-            src_emb = img_emb + lbl_emb
-            # pad_mask = (caption == pad_id)
-            # fc_feats, att_feats, seq
+            if use_rl:
+                return self.generator(att_feats=src_emb)
             cap_gen, cap_emb = self.generator(att_feats=src_emb, seq=caption)  # (B,L,S), (B,L,E)
             if get_emb:
                 return cap_gen, img_mlc, cap_emb
             else:
                 return cap_gen, img_mlc
         else:
-            src_emb = img_emb + lbl_emb
-            cap_gen = self.generator(att_feats=src_emb, seq=caption)  # (B,L,S)
+            cap_gen, _ = self.generator(att_feats=src_emb, seq=caption)  # (B,L,S)
             return cap_gen, img_mlc
 
 
@@ -420,12 +419,16 @@ class ClsGenInt(nn.Module):
                 param.requires_grad = False
 
     def forward(self, image, history=None, caption=None, label=None, threshold=0.15, bos_id=1, eos_id=2, pad_id=3,
-                max_len=300):
+                max_len=300, use_rl=False):
         if caption != None:
             pad_mask = (caption == pad_id)
-            cap_gen, img_mlc, cap_emb = self.clsgen(image, history, caption, label, threshold, bos_id, eos_id, pad_id,
-                                                    max_len, True)
-            cap_mlc = self.interpreter(txt_embed=cap_emb, pad_mask=pad_mask)
-            return cap_gen, img_mlc, cap_mlc
+            if use_rl:
+                return self.clsgen(image, history, caption, label, threshold, bos_id, eos_id,
+                                   pad_id, max_len, False, use_rl)
+            else:
+                cap_gen, img_mlc, cap_emb = self.clsgen(image, history, caption, label, threshold, bos_id, eos_id, pad_id,
+                                                        max_len, True, use_rl)
+                cap_mlc = self.interpreter(txt_embed=cap_emb, pad_mask=pad_mask)
+                return cap_gen, img_mlc, cap_mlc
         else:
             return self.clsgen(image, history, caption, label, threshold, bos_id, eos_id, pad_id, max_len, False)

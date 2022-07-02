@@ -3,8 +3,10 @@ import os.path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from tqdm import tqdm
+import nlgeval
 
 
 # ------ Helper Functions ------
@@ -86,24 +88,58 @@ def args_to_kwargs(args,
         return args
 
 
+def rt_decode_report(captions, dataset):
+    gen = {}
+    for i in range(len(captions)):
+        decoded = ''
+        for j in range(len(captions[i])):
+            tok = dataset.vocab.id_to_piece(int(captions[i, j]))
+            if tok == '</s>':
+                break  # Manually stop generating token after </s> is reached
+            elif tok == '<s>':
+                continue
+            elif tok == '▁':  # space
+                if len(decoded) and decoded[-1] != ' ':
+                    decoded += ' '
+            elif tok in [',', '.', '-', ':']:  # or not tok.isalpha():
+                if len(decoded) and decoded[-1] != ' ':
+                    decoded += ' ' + tok + ' '
+                else:
+                    decoded += tok + ' '
+            else:  # letter
+                decoded += tok
+        gen['{}'.format(i)] = [decoded]
+    return gen
+
+
 # ------ Core Functions ------
 def train(data_loader, model, optimizer, criterion, scheduler=None, device='cpu', kw_src=None, kw_tgt=None, kw_out=None,
-          scaler=None):
+          scaler=None, use_rl=False, dataset=None):
     model.train()
     running_loss = 0
     prog_bar = tqdm(data_loader)
+    scorer = nlgeval.Cider()
     for i, (source, target) in enumerate(prog_bar):
         source = data_to_device(source, device)
         target = data_to_device(target, device)
 
         source = args_to_kwargs(source, kw_src)
         target = args_to_kwargs(target, kw_tgt)
+        source['use_rl'] = use_rl
 
         if scaler != None:
             with torch.cuda.amp.autocast():
                 output = data_distributor(model, source)
-                output = args_to_kwargs(output, kw_out)
-                loss = criterion(output, target)
+                if not use_rl:
+                    output = args_to_kwargs(output, kw_out)
+                    loss = criterion(output, target)
+                else:
+                    gen, score = output[0], output[1]
+                    gen = rt_decode_report(gen, dataset)
+                    gts = rt_decode_report(target[0], dataset)
+
+                    reward = scorer.compute_score(gts, gen)[1].astype(np.float32)
+                    # decode .....
 
             running_loss += loss.item()
             prog_bar.set_description('Loss: {}'.format(running_loss / (i + 1)))

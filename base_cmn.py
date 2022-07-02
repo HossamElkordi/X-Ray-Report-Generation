@@ -447,7 +447,7 @@ class BaseCMN(AttModel):
         col_idx = torch.arange(idx.shape[1], device=idx.device).unsqueeze(0).repeat(idx.shape[0], 1)  # (K,B)
         output = outputs[idx, col_idx]  # (1,B,L)
         score = scores[idx, col_idx]  # (1,B)
-        return output.squeeze(0)  # (B,L)
+        return output.squeeze(0), score.squeeze(0)  # (B,L), (B)
 
     def core(self, it, fc_feats_ph, att_feats_ph, memory, state, mask):
         if len(state) == 0:

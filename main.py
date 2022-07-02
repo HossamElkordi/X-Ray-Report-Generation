@@ -35,13 +35,13 @@ np.random.seed(123)
 
 
 def train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
-                best_loss, last_epoch, num_epochs, save_path, sched_type):
+                best_loss, last_epoch, num_epochs, save_path, sched_type, dataset):
     scaler = torch.cuda.amp.GradScaler()
 
     for epoch in range(last_epoch + 1, num_epochs):
         print('Epoch:', epoch)
         train_loss = train(train_loader, model, optimizer, criterion, device='cuda',
-                           kw_src=args.kwargs_sources, scaler=scaler)
+                           kw_src=args.kwargs_sources, scaler=scaler, dataset=dataset)
         val_loss = test(val_loader, model, criterion, device='cuda', kw_src=args.kwargs_sources, return_results=False)
         test_loss = test(test_loader, model, criterion, device='cuda', kw_src=args.kwargs_sources, return_results=False)
 
@@ -133,7 +133,7 @@ def rt_decode_report(captions, i, dataset):
 
 
 def infer_model(model, dataset, test_data, test_loader, comment):
-    txt_test_outputs, txt_test_targets = infer(test_loader, model,dataset, device='cuda', threshold=0.25,)
+    txt_test_outputs, txt_test_targets = infer(test_loader, model, dataset, device='cuda', threshold=0.25,)
     gen_outputs = txt_test_outputs[0]
     print()
     gen_targets = txt_test_targets[0]
@@ -165,7 +165,7 @@ def infer_model(model, dataset, test_data, test_loader, comment):
     evaluate_metric(gts, gen)
  
  
-def infer(data_loader, model,dataset, device='cpu', threshold=None):
+def infer(data_loader, model, dataset, device='cpu', threshold=None):
     model.eval()
     outputs = []
     targets = []
@@ -347,7 +347,7 @@ def main(args):
                                                                                                   test_metric))
     if args.phase == 'train':
         train_model(model, train_loader, val_loader, test_loader, optimizer, criterion, scheduler,
-                    best_metric, last_epoch, args.epochs, checkpoint_path_to, args.scheduler)
+                    best_metric, last_epoch, args.epochs, checkpoint_path_to, args.scheduler, dataset=dataset)
     elif args.phase == 'test':
         test_model(test_data, comment)
     elif args.phase == 'infer':
