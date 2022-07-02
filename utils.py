@@ -117,6 +117,8 @@ def train(data_loader, model, optimizer, criterion, scheduler=None, device='cpu'
           scaler=None, use_rl=False, dataset=None):
     model.train()
     running_loss = 0
+    running_reward = 0.0
+    running_reward_baseline = 0.0
     prog_bar = tqdm(data_loader)
     scorer = nlgeval.Cider()
     for i, (source, target) in enumerate(prog_bar):
@@ -134,19 +136,24 @@ def train(data_loader, model, optimizer, criterion, scheduler=None, device='cpu'
                     output = args_to_kwargs(output, kw_out)
                     loss = criterion(output, target)
                 else:
-                    gen, score = output[0], output[1]
+                    gen, score = output[0].to('cpu'), output[1].to('cpu')
                     gen = rt_decode_report(gen, dataset)
-                    gts = rt_decode_report(target[0], dataset)
+                    gts = rt_decode_report(target[0].to('cpu'), dataset)
 
-                    reward = scorer.compute_score(gts, gen)[1].astype(np.float32)
-                    # decode .....
+                    reward = torch.from_numpy(scorer.compute_score(gts, gen)[1].astype(np.float32))
+                    reward_baseline = torch.mean(reward, -1, keepdim=True)
+                    loss = torch.mean(score, -1) * (reward - reward_baseline)
+                    loss = loss.mean()
+                    running_loss += loss.item()
+                    running_reward += reward.mean().item()
+                    running_reward_baseline += reward_baseline.mean().item()
 
             running_loss += loss.item()
             prog_bar.set_description('Loss: {}'.format(running_loss / (i + 1)))
 
             # Back-propagate and update weights
             optimizer.zero_grad()
-            scaler.scale(loss).backward()
+            scaler.scale(loss.to('cuda')).backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
             scaler.step(optimizer)
             scaler.update()

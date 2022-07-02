@@ -396,7 +396,7 @@ class ClsGen(nn.Module):
         src_emb = img_emb + lbl_emb
         if caption is not None:
             if use_rl:
-                return self.generator(att_feats=src_emb)
+                return self.generator(att_feats=src_emb, seq=None)
             cap_gen, cap_emb = self.generator(att_feats=src_emb, seq=caption)  # (B,L,S), (B,L,E)
             if get_emb:
                 return cap_gen, img_mlc, cap_emb
